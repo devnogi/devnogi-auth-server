@@ -38,7 +38,7 @@ spring:
     encoding: UTF-8
     baseline-on-migrate: true
     baseline-version: 1
-    locations: classpath:static/db/migration
+    locations: classpath:db/migration
   resources:
     static-locations: classpath:/static/
   mvc:
@@ -84,12 +84,6 @@ decorator:
 logging:
   level:
     until.the.eternity: DEBUG
-
-openapi:
-  nexon:
-    api-key: ${NEXON_API_KEY}
-  auction-history:
-    delay-ms: 1000
 
 ---
 spring:
