@@ -1,0 +1,31 @@
+#!/bin/bash
+
+# 초기 설정
+ENV_FILE=".env"
+ENV_SAMPLE_FILE=".env.sample"
+APP_FILE="src/main/resources/application.yml"
+APP_SAMPLE_FILE="src/main/resources/application-sample.yml"
+
+# .env 파일 복사
+if [ -f "$ENV_FILE" ]; then
+  echo "[SKIP] $ENV_FILE already exists."
+else
+  if [ -f "$ENV_SAMPLE_FILE" ]; then
+    cp "$ENV_SAMPLE_FILE" "$ENV_FILE"
+    echo "[OK] $ENV_SAMPLE_FILE -> $ENV_FILE copied."
+  else
+    echo "[ERROR] $ENV_SAMPLE_FILE not found."
+  fi
+fi
+
+# application.yml 파일 복사
+if [ -f "$APP_FILE" ]; then
+  echo "[SKIP] $APP_FILE already exists."
+else
+  if [ -f "$APP_SAMPLE_FILE" ]; then
+    cp "$APP_SAMPLE_FILE" "$APP_FILE"
+    echo "[OK] $APP_SAMPLE_FILE -> $APP_FILE copied."
+  else
+    echo "[ERROR] $APP_SAMPLE_FILE not found."
+  fi
+fi
