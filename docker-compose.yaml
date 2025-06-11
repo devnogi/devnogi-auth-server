@@ -16,6 +16,7 @@ services:
       TZ: Asia/Seoul
     volumes:
       - mysql_data:/var/lib/mysql
+      - /etc/localtime:/etc/localtime:ro
     networks:
       - my-network
     command:
@@ -25,6 +26,11 @@ services:
       - --sql-mode=STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION
       - --default-time-zone=+09:00  # MySQL 레벨 타임존 설정
       - --explicit_defaults_for_timestamp=1  # TIMESTAMP 기본값 명시 허용
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   mysql_data:

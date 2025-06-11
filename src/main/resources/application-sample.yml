@@ -47,6 +47,9 @@ spring:
       favor-path-extension: true
       # Accept 헤더 무시
       ignore-accept-header: true
+  docker:
+    compose:
+      enabled: false
 
 jwt:
   secret-key: ${JWT_SECRET_KEY:e4f1a5c8d2b7e9f0a6c3d1b8e5f2c7a9d4e6f3b1a2c8d5e9f0b3a7c2d1e8f5a4}
