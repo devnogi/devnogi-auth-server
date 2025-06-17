@@ -36,3 +36,9 @@
 - `techblog/`: 기술 블로그 기능
 
 <br>
+
+### 💻 for developers
+
+- **Git branch 전략**: Git-flow [관련 블로그](https://velog.io/@kw2577/Git-branch-%EC%A0%84%EB%9E%B5)
+
+<br>
