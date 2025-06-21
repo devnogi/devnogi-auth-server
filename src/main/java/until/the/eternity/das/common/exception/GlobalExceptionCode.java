@@ -1,4 +1,4 @@
-package until.the.eternity.common.exception;
+package until.the.eternity.das.common.exception;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
