@@ -1,8 +1,8 @@
-package until.the.eternity.dcs.demo.controller;
+package until.the.eternity.das.demo.controller;
 
-import until.the.eternity.dcs.common.exception.CustomException;
+import until.the.eternity.das.common.exception.CustomException;
 
-import static until.the.eternity.dcs.demo.controller.DemoDomainExceptionCode.DEMO_DOMAIN_NOT_FOUND_EXCEPTION;
+import static until.the.eternity.das.demo.controller.DemoDomainExceptionCode.DEMO_DOMAIN_NOT_FOUND_EXCEPTION;
 
 /**
  * 예시 Exception 입니다.

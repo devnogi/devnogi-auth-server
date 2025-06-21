@@ -1,4 +1,4 @@
-package until.the.eternity.dcs.demo.controller;
+package until.the.eternity.das.demo.controller;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;

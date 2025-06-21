@@ -1,9 +1,9 @@
-package until.the.eternity.dcs.demo.controller;
+package until.the.eternity.das.demo.controller;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
-import until.the.eternity.dcs.common.exception.ExceptionCode;
+import until.the.eternity.das.common.exception.ExceptionCode;
 
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
