@@ -1,4 +1,4 @@
-package until.the.eternity.common.response;
+package until.the.eternity.das.common.response;
 
 import lombok.Builder;
 import lombok.Getter;

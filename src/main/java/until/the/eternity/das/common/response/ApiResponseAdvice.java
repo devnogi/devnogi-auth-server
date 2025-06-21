@@ -1,4 +1,4 @@
-package until.the.eternity.common.response;
+package until.the.eternity.das.common.response;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
