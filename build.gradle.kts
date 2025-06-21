@@ -1,5 +1,5 @@
 plugins {
-	id("org.springframework.boot") version "3.1.3"
+	id("org.springframework.boot") version "3.5.0"
 	id("io.spring.dependency-management") version "1.1.0"
 	kotlin("jvm") version "1.9.22"
 	kotlin("plugin.spring") version "1.9.22"
@@ -31,6 +31,9 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-data-jpa")
 	runtimeOnly("com.mysql:mysql-connector-j")
 
+	// Spring Docs
+	implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.7.0")
+
 	// Kotlin support
 	implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
 	implementation("org.jetbrains.kotlin:kotlin-reflect")
@@ -43,8 +46,8 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-data-redis")
 
 	// Lombok (Optional - 편리한 getter/setter)
-	compileOnly("org.projectlombok:lombok")
-	annotationProcessor("org.projectlombok:lombok")
+	compileOnly("org.projectlombok:lombok:1.18.32")
+	annotationProcessor("org.projectlombok:lombok:1.18.32")
 
 	// Flyway db migration
 	implementation("org.flywaydb:flyway-core")
