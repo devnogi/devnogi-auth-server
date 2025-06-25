@@ -15,6 +15,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
 	@ExceptionHandler(CustomException.class)
 	protected ResponseEntity<ApiResponse<?>> handleCustomException(CustomException exception) {
+		log.error("Caught CustomException: {}", exception.getMessage(), exception);
 		ExceptionResponse exResponse = ExceptionResponse.from(exception);
 		ApiResponse<?> response = ApiResponse.error(exResponse.code(), exResponse.message());
 		return ResponseEntity.status(exResponse.status()).body(response);
