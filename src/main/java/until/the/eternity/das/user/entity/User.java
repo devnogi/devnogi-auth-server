@@ -3,10 +3,10 @@ package until.the.eternity.das.user.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.Comment;
-import until.the.eternity.das.role.entity.Role;
+import until.the.eternity.das.user.entity.enums.InactivatedType;
+import until.the.eternity.das.user.entity.enums.Status;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 
 @Entity
@@ -39,8 +39,9 @@ public class User {
     private String profileImageUrl;
 
     @Column(nullable = false, length = 50)
+    @Enumerated(EnumType.STRING)
     @Comment("계정 상태")
-    private String status;
+    private Status status;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     @Comment("계정 생성일")
@@ -60,7 +61,8 @@ public class User {
 
     @Column(name = "inactivated_type", length = 255)
     @Comment("계정 비활성화 타입 (탈퇴, 장기미접속, 불특정IP접속)")
-    private String inactivatedType;
+    @Enumerated(EnumType.STRING)
+    private InactivatedType inactivatedType;
 
     @OneToMany(cascade = CascadeType.ALL)
     @JoinColumn(name = "user_id")

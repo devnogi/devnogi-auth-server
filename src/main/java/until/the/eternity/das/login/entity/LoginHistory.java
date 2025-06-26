@@ -4,6 +4,7 @@ package until.the.eternity.das.login.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.Comment;
+import until.the.eternity.das.login.entity.enums.Reason;
 import until.the.eternity.das.user.entity.User;
 
 import java.time.LocalDateTime;
@@ -39,7 +40,8 @@ public class LoginHistory {
 
     @Column(length = 255)
     @Comment("실패 사유 (예: wrong_password, locked_account)")
-    private String reason;
+    @Enumerated(EnumType.STRING)
+    private Reason reason;
 
     @Column(name = "created_at", nullable = false)
     @Comment("로그인 시도 시각")
