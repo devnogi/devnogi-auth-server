@@ -30,7 +30,6 @@ public class LoginHistory {
     @Comment("로그인 시도한 IP 주소")
     private String loginIp;
 
-    @Lob
     @Comment("접속한 브라우저/OS 정보")
     private String userAgent;
 
