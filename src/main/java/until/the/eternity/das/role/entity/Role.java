@@ -3,9 +3,9 @@ package until.the.eternity.das.role.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import until.the.eternity.das.role.entity.enums.Name;
 import until.the.eternity.das.user.entity.UserRole;
 
-import java.util.ArrayList;
 import java.util.List;
 
 @Entity
@@ -22,7 +22,8 @@ public class Role {
     private Long id;
 
     @Column(nullable = false, unique = true, length = 50)
-    private String name;
+    @Enumerated(EnumType.STRING)
+    private Name name;
 
     @Column(length = 255)
     private String description;
