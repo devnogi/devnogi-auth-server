@@ -21,6 +21,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.Comment;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 import until.the.eternity.das.role.entity.Role;
 import until.the.eternity.das.user.entity.enums.InactivatedType;
 import until.the.eternity.das.user.entity.enums.Status;
@@ -61,10 +63,12 @@ public class User {
 
   @Column(name = "created_at", nullable = false, updatable = false)
   @Comment("계정 생성일")
+  @CreationTimestamp
   private LocalDateTime createdAt;
 
   @Column(name = "updated_at", nullable = false)
   @Comment("계정 정보 수정일")
+  @UpdateTimestamp
   private LocalDateTime updatedAt;
 
   @Column(name = "last_login_at")
