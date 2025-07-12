@@ -36,7 +36,11 @@ public class SecurityConfig {
     //경로별 인가 작업
     http
         .authorizeHttpRequests((auth) -> auth
-            .requestMatchers("/api/user/login", "/", "/api/user/signup", "api/demo/*").permitAll()
+            .requestMatchers("/swagger", "/swagger-ui.html", "/swagger-ui/**", "/api-docs",
+                "/api-docs/**", "/v3/api-docs/**").permitAll()
+            .requestMatchers("/api/demo/*").permitAll()
+            .requestMatchers("/api/auth/login", "/api/auth/check-email", "/api/auth/signup")
+            .permitAll()
             .requestMatchers("/admin").hasRole("ADMIN")
             .anyRequest().authenticated());
 
