@@ -6,8 +6,9 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum Name {
-    USER("사용자"),
-    ADMIN("관리자");
+  SUPER_ADMIN("최고 권한 관리자"),
+  ADMIN("관리자"),
+  USER("사용자");
 
-    private final String label;
+  private final String label;
 }

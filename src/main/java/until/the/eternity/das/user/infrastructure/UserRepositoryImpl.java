@@ -32,5 +32,4 @@ public class UserRepositoryImpl implements UserRepository {
     return jpaRepository.findByEmail(email);
   }
 
-  ;
 }

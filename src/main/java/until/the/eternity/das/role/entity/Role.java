@@ -1,12 +1,20 @@
 package until.the.eternity.das.role.entity;
 
 
-import jakarta.persistence.*;
-import lombok.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 import until.the.eternity.das.role.entity.enums.Name;
-import until.the.eternity.das.user.entity.UserRole;
-
-import java.util.List;
 
 @Entity
 @Table(name = "roles")
@@ -16,18 +24,16 @@ import java.util.List;
 @Builder
 public class Role {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id")
-    private Long id;
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  @Column(name = "id")
+  private Long id;
 
-    @Column(nullable = false, unique = true, length = 50)
-    @Enumerated(EnumType.STRING)
-    private Name name;
+  @Column(nullable = false, unique = true, length = 50)
+  @Enumerated(EnumType.STRING)
+  private Name name;
 
-    @Column(length = 255)
-    private String description;
+  @Column(length = 255)
+  private String description;
 
-    @OneToMany(mappedBy = "role", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<UserRole> userRoles;
 }

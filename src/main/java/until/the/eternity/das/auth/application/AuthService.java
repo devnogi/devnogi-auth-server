@@ -13,6 +13,9 @@ import until.the.eternity.das.auth.exception.InvalidEmailFormatException;
 import until.the.eternity.das.auth.exception.InvalidNicknameFormatException;
 import until.the.eternity.das.auth.exception.InvalidPasswordFormatException;
 import until.the.eternity.das.auth.exception.NicknameAlreadyExistsException;
+import until.the.eternity.das.role.entity.Role;
+import until.the.eternity.das.role.entity.RoleRepository;
+import until.the.eternity.das.role.entity.enums.Name;
 import until.the.eternity.das.user.entity.User;
 import until.the.eternity.das.user.entity.UserRepository;
 
@@ -21,8 +24,9 @@ import until.the.eternity.das.user.entity.UserRepository;
 @RequiredArgsConstructor
 public class AuthService {
 
-  private final UserRepository userRepository;
   private final AuthConverter authConverter;
+  private final UserRepository userRepository;
+  private final RoleRepository roleRepository;
   private final BCryptPasswordEncoder bCryptPasswordEncoder;
 
 
@@ -46,9 +50,16 @@ public class AuthService {
     // 비밀번호 유효성 검증
     isValidPasswordFormat(request.password());
 
+    // 기본 USER Role이 존재하는지 확인
+    Role userRole = roleRepository.findByName(Name.USER)
+        .orElseThrow(() -> new IllegalStateException("기본 USER Role이 없습니다."));
+
     User user = authConverter.fromUserSignUpRequestToUser(request,
-        bCryptPasswordEncoder.encode(request.password()));
-    return authConverter.fromUserToUserSignUpResponse(userRepository.save(user));
+        bCryptPasswordEncoder.encode(request.password()), userRole);
+
+    userRepository.save(user);
+
+    return authConverter.fromUserToUserSignUpResponse(user);
   }
 
   private void isValidPasswordFormat(String password) {
