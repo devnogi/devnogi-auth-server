@@ -9,18 +9,17 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.JoinTable;
-import jakarta.persistence.ManyToMany;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
-import java.util.HashSet;
-import java.util.Set;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.Comment;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 import until.the.eternity.das.role.entity.Role;
 import until.the.eternity.das.user.entity.enums.InactivatedType;
 import until.the.eternity.das.user.entity.enums.Status;
@@ -61,10 +60,12 @@ public class User {
 
   @Column(name = "created_at", nullable = false, updatable = false)
   @Comment("계정 생성일")
+  @CreationTimestamp
   private LocalDateTime createdAt;
 
   @Column(name = "updated_at", nullable = false)
   @Comment("계정 정보 수정일")
+  @UpdateTimestamp
   private LocalDateTime updatedAt;
 
   @Column(name = "last_login_at")
@@ -80,11 +81,8 @@ public class User {
   @Enumerated(EnumType.STRING)
   private InactivatedType inactivatedType;
 
-  @ManyToMany(fetch = FetchType.EAGER)
-  @JoinTable(
-      name = "user_roles",
-      joinColumns = @JoinColumn(name = "user_id"),
-      inverseJoinColumns = @JoinColumn(name = "role_id")
-  )
-  private Set<Role> roles = new HashSet<>();
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "role_id")
+  private Role role;
+
 }
