@@ -99,10 +99,7 @@ public class AuthService {
   }
 
   public boolean existsByEmail(@NotBlank String email) {
-    if (userRepository.existsByEmail(email)) {
-      return true; // 이미 사용 중인 이메일
-    }
-    return false;
+    return userRepository.existsByEmail(email);
   }
 
   public void isValidNicknameFormat(@NotBlank String nickname) {
@@ -112,9 +109,6 @@ public class AuthService {
   }
 
   public boolean existsByNickname(@NotBlank String nickname) {
-    if (userRepository.existsByNickname(nickname)) {
-      return true; // 이미 사용 중인 닉네임
-    }
-    return false;
+    return userRepository.existsByNickname(nickname);
   }
 }
