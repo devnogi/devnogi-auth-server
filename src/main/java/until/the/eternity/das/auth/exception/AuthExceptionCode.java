@@ -1,4 +1,4 @@
-package until.the.eternity.das.user.exception;
+package until.the.eternity.das.auth.exception;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -8,7 +8,7 @@ import until.the.eternity.das.common.exception.ExceptionCode;
 
 @Getter
 @RequiredArgsConstructor
-public enum UserExceptionCode implements ExceptionCode {
+public enum AuthExceptionCode implements ExceptionCode {
   EMAIL_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 가입되어 있는 이메일입니다."),
   NICKNAME_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 존재하는 닉네임입니다."),
   INVALID_EMAIL_FORMAT(HttpStatus.BAD_REQUEST, "유효하지 않은 이메일 형식입니다."),

@@ -1,4 +1,4 @@
-package until.the.eternity.das.user.presentation;
+package until.the.eternity.das.auth.presentation;
 
 import static org.springframework.http.HttpStatus.CREATED;
 
@@ -15,16 +15,16 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import until.the.eternity.das.user.application.UserService;
-import until.the.eternity.das.user.dto.request.SignUpRequest;
-import until.the.eternity.das.user.dto.response.SignUpResponse;
+import until.the.eternity.das.auth.application.AuthService;
+import until.the.eternity.das.auth.dto.request.SignUpRequest;
+import until.the.eternity.das.auth.dto.response.SignUpResponse;
 
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/auth")
-public class UserController {
+public class AuthController {
 
-  private final UserService userService;
+  private final AuthService authService;
 
   /**
    * 회원 가입 API
@@ -41,7 +41,7 @@ public class UserController {
       responseCode = "201",
       content = @Content(schema = @Schema(implementation = SignUpResponse.class)))
   public ResponseEntity<SignUpResponse> signUp(@RequestBody SignUpRequest request) {
-    return ResponseEntity.status(CREATED).body(userService.signUp(request));
+    return ResponseEntity.status(CREATED).body(authService.signUp(request));
   }
 
 
@@ -61,9 +61,9 @@ public class UserController {
       @RequestParam(name = "email") @NotBlank String email) {
 
     // 이메일 형식 유효성 검증
-    userService.isValidEmailFormat(email);
+    authService.isValidEmailFormat(email);
 
-    boolean exists = userService.existsByEmail(email);
+    boolean exists = authService.existsByEmail(email);
     // exists == true면 이미 사용중인 이메일
     return ResponseEntity.ok(!exists); // true = 사용 가능, false = 중복됨
   }
@@ -84,9 +84,9 @@ public class UserController {
       @RequestParam(name = "nickname") @NotBlank String nickname) {
 
     // 닉네임 유효성 검증
-    userService.isValidNicknameFormat(nickname);
+    authService.isValidNicknameFormat(nickname);
 
-    boolean exists = userService.existsByNickname(nickname);
+    boolean exists = authService.existsByNickname(nickname);
     // exists == true면 이미 사용중인 닉네임
     return ResponseEntity.ok(!exists); // true = 사용 가능, false = 중복됨
   }

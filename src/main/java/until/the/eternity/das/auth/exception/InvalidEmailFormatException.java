@@ -1,6 +1,6 @@
-package until.the.eternity.das.user.exception;
+package until.the.eternity.das.auth.exception;
 
-import static until.the.eternity.das.user.exception.UserExceptionCode.INVALID_EMAIL_FORMAT;
+import static until.the.eternity.das.auth.exception.AuthExceptionCode.INVALID_EMAIL_FORMAT;
 
 import until.the.eternity.das.common.exception.CustomException;
 

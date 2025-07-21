@@ -1,4 +1,4 @@
-package until.the.eternity.das.user.application;
+package until.the.eternity.das.auth.application;
 
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
@@ -6,23 +6,23 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import until.the.eternity.das.user.dto.request.SignUpRequest;
-import until.the.eternity.das.user.dto.response.SignUpResponse;
+import until.the.eternity.das.auth.dto.request.SignUpRequest;
+import until.the.eternity.das.auth.dto.response.SignUpResponse;
+import until.the.eternity.das.auth.exception.EmailAlreadyExistsException;
+import until.the.eternity.das.auth.exception.InvalidEmailFormatException;
+import until.the.eternity.das.auth.exception.InvalidNicknameFormatException;
+import until.the.eternity.das.auth.exception.InvalidPasswordFormatException;
+import until.the.eternity.das.auth.exception.NicknameAlreadyExistsException;
 import until.the.eternity.das.user.entity.User;
 import until.the.eternity.das.user.entity.UserRepository;
-import until.the.eternity.das.user.exception.EmailAlreadyExistsException;
-import until.the.eternity.das.user.exception.InvalidEmailFormatException;
-import until.the.eternity.das.user.exception.InvalidNicknameFormatException;
-import until.the.eternity.das.user.exception.InvalidPasswordFormatException;
-import until.the.eternity.das.user.exception.NicknameAlreadyExistsException;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class UserService {
+public class AuthService {
 
   private final UserRepository userRepository;
-  private final UserConverter userConverter;
+  private final AuthConverter authConverter;
   private final BCryptPasswordEncoder bCryptPasswordEncoder;
 
 
@@ -46,9 +46,9 @@ public class UserService {
     // 비밀번호 유효성 검증
     isValidPasswordFormat(request.password());
 
-    User user = userConverter.fromUserSignUpRequestToUser(request,
+    User user = authConverter.fromUserSignUpRequestToUser(request,
         bCryptPasswordEncoder.encode(request.password()));
-    return userConverter.fromUserToUserSignUpResponse(userRepository.save(user));
+    return authConverter.fromUserToUserSignUpResponse(userRepository.save(user));
   }
 
   private void isValidPasswordFormat(String password) {

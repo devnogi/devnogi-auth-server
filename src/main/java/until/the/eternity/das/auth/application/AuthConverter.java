@@ -1,13 +1,13 @@
-package until.the.eternity.das.user.application;
+package until.the.eternity.das.auth.application;
 
 import org.springframework.stereotype.Component;
-import until.the.eternity.das.user.dto.request.SignUpRequest;
-import until.the.eternity.das.user.dto.response.SignUpResponse;
+import until.the.eternity.das.auth.dto.request.SignUpRequest;
+import until.the.eternity.das.auth.dto.response.SignUpResponse;
 import until.the.eternity.das.user.entity.User;
 import until.the.eternity.das.user.entity.enums.Status;
 
 @Component
-public class UserConverter {
+public class AuthConverter {
 
   public User fromUserSignUpRequestToUser(SignUpRequest request, String passwordHash) {
     return User.builder()
