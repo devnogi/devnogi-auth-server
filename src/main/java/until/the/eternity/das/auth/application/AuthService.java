@@ -31,8 +31,33 @@ public class AuthService {
 
 
   @Transactional
-  public SignUpResponse signUp(SignUpRequest request) {
+  public SignUpResponse signUpUser(SignUpRequest request) {
 
+    // 기본 USER Role이 존재하는지 확인
+    Role userRole = roleRepository.findByName(Name.USER)
+        .orElseThrow(() -> {
+          log.error("USER Role이 DB에 존재하지 않습니다.");
+          return new IllegalStateException("USER Role이 없습니다.");
+        });
+
+    return signUp(request, userRole);
+  }
+
+
+  @Transactional
+  public SignUpResponse signUpAdmin(SignUpRequest request) {
+
+    // Admin Role이 존재하는지 확인
+    Role adminRole = roleRepository.findByName(Name.ADMIN)
+        .orElseThrow(() -> {
+          log.error("ADMIN Role이 DB에 존재하지 않습니다.");
+          return new IllegalStateException("ADMIN Role이 없습니다.");
+        });
+
+    return signUp(request, adminRole);
+  }
+
+  private SignUpResponse signUp(SignUpRequest request, Role role) {
     // 이메일 형식 유효성 검증
     isValidEmailFormat(request.email());
     // 이메일 중복 검증
@@ -50,17 +75,14 @@ public class AuthService {
     // 비밀번호 유효성 검증
     isValidPasswordFormat(request.password());
 
-    // 기본 USER Role이 존재하는지 확인
-    Role userRole = roleRepository.findByName(Name.USER)
-        .orElseThrow(() -> new IllegalStateException("기본 USER Role이 없습니다."));
-
     User user = authConverter.fromUserSignUpRequestToUser(request,
-        bCryptPasswordEncoder.encode(request.password()), userRole);
+        bCryptPasswordEncoder.encode(request.password()), role);
 
     userRepository.save(user);
 
     return authConverter.fromUserToUserSignUpResponse(user);
   }
+
 
   private void isValidPasswordFormat(String password) {
     if (password == null || !password

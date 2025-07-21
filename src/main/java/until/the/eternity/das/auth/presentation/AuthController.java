@@ -30,7 +30,7 @@ public class AuthController {
    * 회원 가입 API
    *
    * @param request 회원 가입 요청 정보 (이메일, 비밀번호, 닉네임)
-   * @return 생성된 회원 정보가 포함된 ResponseEntity 객체 (HTTP 상태 201 Created)
+   * @return 생성된 회원 정보가 포함된 ResponseEntity 객체 ID (HTTP 상태 201 Created)
    */
   @PostMapping("/signup")
   @Operation(summary = "회원 가입 API", description = """
@@ -41,7 +41,27 @@ public class AuthController {
       responseCode = "201",
       content = @Content(schema = @Schema(implementation = SignUpResponse.class)))
   public ResponseEntity<SignUpResponse> signUp(@RequestBody SignUpRequest request) {
-    return ResponseEntity.status(CREATED).body(authService.signUp(request));
+    return ResponseEntity.status(CREATED).body(authService.signUpUser(request));
+  }
+
+  //Todo : SuperAdmin만 접근 가능하도록 권한 설정 필요
+
+  /**
+   * 회원 가입 API
+   *
+   * @param request 관리자 가입 요청 정보 (이메일, 비밀번호, 닉네임)
+   * @return 생성된 관리자  정보가 포함된 ResponseEntity 객체 ID (HTTP 상태 201 Created)
+   */
+  @PostMapping("/admin/signup")
+  @Operation(summary = "관리자 가입 API", description = """
+      - Description : 이 API는 관리자 가입을 요청합니다.
+      - Assignee : 안나
+      """)
+  @ApiResponse(
+      responseCode = "201",
+      content = @Content(schema = @Schema(implementation = SignUpResponse.class)))
+  public ResponseEntity<SignUpResponse> signUpAdmin(@RequestBody SignUpRequest request) {
+    return ResponseEntity.status(CREATED).body(authService.signUpAdmin(request));
   }
 
 
