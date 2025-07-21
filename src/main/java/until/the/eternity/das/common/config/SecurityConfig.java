@@ -39,7 +39,8 @@ public class SecurityConfig {
             .requestMatchers("/swagger", "/swagger-ui.html", "/swagger-ui/**", "/api-docs",
                 "/api-docs/**", "/v3/api-docs/**").permitAll()
             .requestMatchers("/api/demo/*").permitAll() // Todo: 추후 삭제 예정
-            .requestMatchers("/api/auth/login", "/api/auth/check-email", "/api/auth/signup")
+            .requestMatchers("/api/auth/login", "/api/auth/check-email", "/api/auth/check-nickname",
+                "/api/auth/signup")
             .permitAll()
             .requestMatchers("/api/auth/admin/signup")
             .hasRole("SUPER_ADMIN") // Todo: Role이 String으로 되어 있어서 추후 수정 필요
