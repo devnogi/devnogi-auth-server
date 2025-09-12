@@ -1,4 +1,4 @@
-# 🎮 마비노기 경매장 거래 내역 조회 및 통계 서비스 
+# 🎮 마비노기 경매장 거래 내역 조회 및 통계 서비스
 
 마비노기 경매장 거래 내역을 수집하고 분석하여 사용자에게 시세 정보와 커뮤니티 기능을 제공하는 웹 애플리케이션입니다.
 
@@ -23,6 +23,42 @@
 - **Deployment**: AWS EC2, RDS, S3
 - **Document**: Spring REST Docs, Postman
 - **Cooperation**: Notion, Slack
+
+<br>
+
+### 📖 API Endpoints
+
+이 서비스는 사용자 인증을 담당하며, 다음과 같은 API 엔드포인트를 제공합니다.
+
+#### 1. 로컬 로그인
+
+- **Endpoint**: `POST /api/auth/login`
+- **Description**: 이메일과 비밀번호로 로그인하여 JWT Access/Refresh 토큰을 발급받습니다.
+- **Request Body**:
+  ```json
+  {
+    "email": "test@example.com",
+    "password": "password123!"
+  }
+  ```
+- **Success Response (200 OK)**:
+  ```json
+  {
+    "accessToken": "ey...",
+    "refreshToken": "ey..."
+  }
+  ```
+
+#### 2. 소셜 로그인
+
+- **Endpoint**: `GET /oauth2/authorization/{provider}`
+- **Description**: 지정된 소셜 제공자({provider})의 로그인 페이지로 리다이렉트하여 인증을 시작합니다. {provider}에는 `google`, `kakao`, `naver`가 올 수 있습니다.
+- **Flow**:
+  1. 사용자가 위 엔드포인트로 접근합니다.
+  2. 해당 소셜 서비스의 로그인 페이지로 리다이렉트됩니다.
+  3. 사용자가 로그인을 완료하면, 서비스는 사용자를 프론트엔드의 콜백 주소(`application.yml`의 `app.oauth.redirect-uri`에 명시된 주소)로 리다이렉트시킵니다.
+  4. 이때, Access Token과 Refresh Token이 쿼리 파라미터로 함께 전달됩니다.
+     - 예: `http://frontend.com/oauth/redirect?accessToken=ey...&refreshToken=ey...`
 
 <br>
 

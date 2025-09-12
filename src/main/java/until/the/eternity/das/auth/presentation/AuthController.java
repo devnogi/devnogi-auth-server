@@ -6,6 +6,9 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -18,13 +21,27 @@ import org.springframework.web.bind.annotation.RestController;
 import until.the.eternity.das.auth.application.AuthService;
 import until.the.eternity.das.auth.dto.request.SignUpRequest;
 import until.the.eternity.das.auth.dto.response.SignUpResponse;
+import until.the.eternity.das.dto.request.LoginRequest;
+import until.the.eternity.das.dto.response.TokenResponse;
 
+@Tag(name = "인증 API", description = "사용자 회원가입, 로그인 및 토큰 관련 API")
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/auth")
 public class AuthController {
 
   private final AuthService authService;
+
+  @Operation(summary = "로컬 로그인", description = "이메일과 비밀번호를 사용하여 로그인하고 JWT를 발급합니다.")
+  @ApiResponses(value = {
+          @ApiResponse(responseCode = "200", description = "로그인 성공"),
+          @ApiResponse(responseCode = "401", description = "인증 실패 (자격 증명 불일치)")
+  })
+  @PostMapping("/login")
+  public ResponseEntity<TokenResponse> login(@Valid @RequestBody LoginRequest loginRequest) {
+      TokenResponse tokenResponse = authService.login(loginRequest);
+      return ResponseEntity.ok(tokenResponse);
+  }
 
   /**
    * 회원 가입 API

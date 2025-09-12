@@ -3,6 +3,11 @@ package until.the.eternity.das.auth.application;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,6 +18,9 @@ import until.the.eternity.das.auth.exception.InvalidEmailFormatException;
 import until.the.eternity.das.auth.exception.InvalidNicknameFormatException;
 import until.the.eternity.das.auth.exception.InvalidPasswordFormatException;
 import until.the.eternity.das.auth.exception.NicknameAlreadyExistsException;
+import until.the.eternity.das.dto.request.LoginRequest;
+import until.the.eternity.das.dto.response.TokenResponse;
+import until.the.eternity.das.jwt.JwtProvider;
 import until.the.eternity.das.role.entity.Role;
 import until.the.eternity.das.role.entity.RoleRepository;
 import until.the.eternity.das.role.entity.enums.Name;
@@ -27,8 +35,29 @@ public class AuthService {
   private final AuthConverter authConverter;
   private final UserRepository userRepository;
   private final RoleRepository roleRepository;
-  private final BCryptPasswordEncoder bCryptPasswordEncoder;
+  private final PasswordEncoder bCryptPasswordEncoder;
+  private final JwtProvider jwtProvider;
+  private final AuthenticationManagerBuilder authenticationManagerBuilder;
 
+
+  public TokenResponse login(LoginRequest loginRequest) {
+    UsernamePasswordAuthenticationToken authenticationToken =
+            new UsernamePasswordAuthenticationToken(loginRequest.getEmail(), loginRequest.getPassword());
+
+    Authentication authentication = authenticationManagerBuilder.getObject().authenticate(authenticationToken);
+    SecurityContextHolder.getContext().setAuthentication(authentication);
+
+    String accessToken = jwtProvider.createAccessToken(authentication);
+    String refreshToken = jwtProvider.createRefreshToken(authentication);
+
+    // Refresh Token 저장 로직 (DB)
+    // ... 추가 구현 필요
+
+    return TokenResponse.builder()
+            .accessToken(accessToken)
+            .refreshToken(refreshToken)
+            .build();
+  }
 
   @Transactional
   public SignUpResponse signUpUser(SignUpRequest request) {

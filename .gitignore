@@ -41,3 +41,6 @@ application.yml
 
 ### Docker-Compose ###
 .env
+
+### Custom ###
+/dev_rules/
