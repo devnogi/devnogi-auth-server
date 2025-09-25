@@ -18,6 +18,8 @@ import until.the.eternity.das.common.exception.GlobalExceptionCode;
 import until.the.eternity.das.user.entity.User;
 
 import javax.crypto.SecretKey;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
@@ -31,7 +33,7 @@ public class JwtUtil {
   private final JwtConstant jwtConstant;
 
   private SecretKey getSecretKey() {
-    byte[] keyBytes = Decoders.BASE64.decode(jwtConstant.getSecret());
+    byte[] keyBytes = Decoders.BASE64.decode(jwtConstant.getSecretKey());
     return Keys.hmacShaKeyFor(keyBytes);
   }
 
@@ -48,7 +50,7 @@ public class JwtUtil {
       .getName());
     claims.put("type", "ACCESS");
 
-    return createToken(claims, user.getEmail(), jwtConstant.getAccessTokenExpiration());
+    return createToken(claims, user.getEmail(), jwtConstant.getAccessTokenValidity());
   }
 
   /**
@@ -62,7 +64,7 @@ public class JwtUtil {
     claims.put("userId", user.getId());
     claims.put("type", "REFRESH");
 
-    return createToken(claims, user.getEmail(), jwtConstant.getRefreshTokenExpiration());
+    return createToken(claims, user.getEmail(), jwtConstant.getRefreshTokenValidity());
   }
 
   /**
@@ -142,5 +144,19 @@ public class JwtUtil {
     } catch (ExpiredJwtException e) {
       throw new CustomException(GlobalExceptionCode.EXPIRED_TOKEN);
     }
+  }
+
+  /**
+   * 토큰에서 만료시간 추출하는 메서드
+   *
+   * @param token
+   * @return
+   */
+  public LocalDateTime getExpirationDateFromToken(String token) {
+    Claims claims = extractAllClaims(token);
+    Date expiration = claims.getExpiration();
+    return expiration.toInstant()
+      .atZone(ZoneId.systemDefault())
+      .toLocalDateTime();
   }
 }
