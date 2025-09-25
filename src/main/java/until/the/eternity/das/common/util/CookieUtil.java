@@ -22,9 +22,9 @@ public class CookieUtil {
     ResponseCookie cookie = ResponseCookie.from(jwtConstant.getACCESS_TOKEN_COOKIE_NAME(), accessToken)
       .httpOnly(true)
       .secure(true)
-      .sameSite("Strict")
+      .sameSite("None")
       .path("/")
-      .maxAge(jwtConstant.getAccessTokenExpiration())
+      .maxAge(jwtConstant.getAccessTokenValidity())
       .build();
 
     response.addHeader("Set-Cookie", cookie.toString());
@@ -40,9 +40,9 @@ public class CookieUtil {
     ResponseCookie cookie = ResponseCookie.from(jwtConstant.getREFRESH_TOKEN_COOKIE_NAME(), refreshToken)
       .httpOnly(true)
       .secure(true)
-      .sameSite("Strict")
+      .sameSite("None")
       .path("/")
-      .maxAge(jwtConstant.getAccessTokenExpiration())
+      .maxAge(jwtConstant.getRefreshTokenValidity())
       .build();
 
     response.addHeader("Set-Cookie", cookie.toString());
