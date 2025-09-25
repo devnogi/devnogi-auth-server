@@ -6,13 +6,18 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import until.the.eternity.das.auth.dto.request.LoginRequest;
 import until.the.eternity.das.auth.dto.request.SignUpRequest;
+import until.the.eternity.das.auth.dto.response.LoginResultResponse;
 import until.the.eternity.das.auth.dto.response.SignUpResponse;
 import until.the.eternity.das.common.exception.CustomException;
 import until.the.eternity.das.common.exception.GlobalExceptionCode;
+import until.the.eternity.das.common.util.CookieUtil;
+import until.the.eternity.das.common.util.JwtUtil;
 import until.the.eternity.das.role.entity.Role;
 import until.the.eternity.das.role.entity.RoleRepository;
 import until.the.eternity.das.role.entity.enums.Name;
+import until.the.eternity.das.token.application.TokenService;
 import until.the.eternity.das.user.entity.User;
 import until.the.eternity.das.user.entity.UserRepository;
 
@@ -25,6 +30,9 @@ public class AuthService {
   private final UserRepository userRepository;
   private final RoleRepository roleRepository;
   private final BCryptPasswordEncoder bCryptPasswordEncoder;
+  private final JwtUtil jwtUtil;
+  private final CookieUtil cookieUtil;
+  private final TokenService tokenService;
 
 
   @Transactional
@@ -34,7 +42,7 @@ public class AuthService {
     Role userRole = roleRepository.findByName(Name.USER)
       .orElseThrow(() -> {
         log.error("USER Role이 DB에 존재하지 않습니다.");
-        return new IllegalStateException("USER Role이 없습니다.");
+        return new CustomException(GlobalExceptionCode.USER_ROLE_NOT_EXISTS);
       });
 
     return signUp(request, userRole);
@@ -48,10 +56,30 @@ public class AuthService {
     Role adminRole = roleRepository.findByName(Name.ADMIN)
       .orElseThrow(() -> {
         log.error("ADMIN Role이 DB에 존재하지 않습니다.");
-        return new IllegalStateException("ADMIN Role이 없습니다.");
+        return new CustomException(GlobalExceptionCode.ADMIN_ROLE_NOT_EXISTS);
       });
 
     return signUp(request, adminRole);
+  }
+
+  public LoginResultResponse login(LoginRequest request) {
+    User user = userRepository.findByEmail(request.email())
+      .orElseThrow(() -> new CustomException(GlobalExceptionCode.USER_NOT_EXISTS));
+
+    if (!bCryptPasswordEncoder.matches(request.password(), user.getPasswordHash())) {
+      throw new CustomException(GlobalExceptionCode.INVALID_PASSWORD);
+    }
+
+    String accessToken = jwtUtil.generateAccessToken(user);
+    String refreshToken = jwtUtil.generateRefreshToken(user);
+
+    tokenService.saveNewRefreshToken(user.getId(), refreshToken);
+
+    return LoginResultResponse.builder()
+      .user(user)
+      .accessToken(accessToken)
+      .refreshToken(refreshToken)
+      .build();
   }
 
   private SignUpResponse signUp(SignUpRequest request, Role role) {
