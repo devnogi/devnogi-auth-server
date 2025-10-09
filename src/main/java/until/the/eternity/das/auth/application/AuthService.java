@@ -10,9 +10,9 @@ import until.the.eternity.das.auth.dto.request.LoginRequest;
 import until.the.eternity.das.auth.dto.request.SignUpRequest;
 import until.the.eternity.das.auth.dto.response.LoginResultResponse;
 import until.the.eternity.das.auth.dto.response.SignUpResponse;
+import until.the.eternity.das.common.application.S3Service;
 import until.the.eternity.das.common.exception.CustomException;
 import until.the.eternity.das.common.exception.GlobalExceptionCode;
-import until.the.eternity.das.common.util.CookieUtil;
 import until.the.eternity.das.common.util.JwtUtil;
 import until.the.eternity.das.role.entity.Role;
 import until.the.eternity.das.role.entity.RoleRepository;
@@ -31,8 +31,8 @@ public class AuthService {
   private final RoleRepository roleRepository;
   private final BCryptPasswordEncoder bCryptPasswordEncoder;
   private final JwtUtil jwtUtil;
-  private final CookieUtil cookieUtil;
   private final TokenService tokenService;
+  private final S3Service s3Service;
 
 
   @Transactional
@@ -62,6 +62,7 @@ public class AuthService {
     return signUp(request, adminRole);
   }
 
+  @Transactional
   public LoginResultResponse login(LoginRequest request) {
     User user = userRepository.findByEmail(request.email())
       .orElseThrow(() -> new CustomException(GlobalExceptionCode.USER_NOT_EXISTS));
@@ -74,6 +75,7 @@ public class AuthService {
     String refreshToken = jwtUtil.generateRefreshToken(user);
 
     tokenService.saveNewRefreshToken(user.getId(), refreshToken);
+    user.updateLastLoginAt();
 
     return LoginResultResponse.builder()
       .user(user)
@@ -100,8 +102,15 @@ public class AuthService {
     // 비밀번호 유효성 검증
     isValidPasswordFormat(request.password());
 
+    // 프로필 이미지 등록
+    String profileImageUrl = null;
+    if (request.file() != null) {
+      String dirName = "profile";
+      profileImageUrl = s3Service.uploadImage(request.file(), dirName);
+    }
+
     User user = authConverter.fromUserSignUpRequestToUser(request,
-      bCryptPasswordEncoder.encode(request.password()), role);
+      bCryptPasswordEncoder.encode(request.password()), role, profileImageUrl);
 
     userRepository.save(user);
 
