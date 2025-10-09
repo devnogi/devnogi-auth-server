@@ -86,4 +86,17 @@ public class User {
   @JoinColumn(name = "role_id")
   private Role role;
 
+  public void updateUserInfo(String nickname, String profileImageUrl) {
+    this.nickname = nickname;
+    this.profileImageUrl = profileImageUrl;
+  }
+
+  public void updatePassword(String passwordHash) {
+    this.passwordHash = passwordHash;
+  }
+
+  public void updateLastLoginAt() {
+    this.lastLoginAt = LocalDateTime.now();
+  }
+
 }
