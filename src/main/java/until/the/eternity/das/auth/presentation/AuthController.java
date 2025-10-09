@@ -9,6 +9,7 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -50,7 +51,7 @@ public class AuthController {
   @ApiResponse(
     responseCode = "201",
     content = @Content(schema = @Schema(implementation = SignUpResponse.class)))
-  public ResponseEntity<CommonResponse<SignUpResponse>> signUp(@RequestBody SignUpRequest request) {
+  public ResponseEntity<CommonResponse<SignUpResponse>> signUp(@ModelAttribute SignUpRequest request) {
     return ResponseEntity.status(CREATED)
       .body(CommonResponse.success(authService.signUpUser(request)));
   }
@@ -125,7 +126,9 @@ public class AuthController {
 
 
   @PostMapping("/signup/social")
-  public ResponseEntity<CommonResponse<SignUpResponse>> completeSocialSignup(@RequestBody SocialSignUpRequest request) {
+  public ResponseEntity<CommonResponse<SignUpResponse>> completeSocialSignup(
+    @ModelAttribute SocialSignUpRequest request
+  ) {
     SignUpResponse result = socialAuthService.completeSocialSignup(request);
     return ResponseEntity.status(CREATED)
       .body(CommonResponse.success(result));
