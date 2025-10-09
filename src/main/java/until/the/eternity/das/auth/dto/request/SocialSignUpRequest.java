@@ -2,6 +2,7 @@ package until.the.eternity.das.auth.dto.request;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
+import org.springframework.web.multipart.MultipartFile;
 
 import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
 
@@ -16,6 +17,8 @@ public record SocialSignUpRequest(
 
   @Schema(description = "사용자 닉네임 (커뮤니티 표시용)", example = "abc1234", requiredMode = REQUIRED)
   @NotBlank(message = "닉네임을 입력해주세요.")
-  String nickname
+  String nickname,
+
+  MultipartFile file
 ) {
 }
