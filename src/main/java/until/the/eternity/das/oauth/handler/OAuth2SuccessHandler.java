@@ -11,7 +11,6 @@ import org.springframework.security.oauth2.client.authentication.OAuth2Authentic
 import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
-import until.the.eternity.das.auth.application.AuthConverter;
 import until.the.eternity.das.common.response.CommonResponse;
 import until.the.eternity.das.common.util.CookieUtil;
 import until.the.eternity.das.common.util.JwtUtil;
@@ -34,7 +33,6 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
   private final UserRepository userRepository;
   private final OauthUserRepository oauthUserRepository;
   private final JwtUtil jwtUtil;
-  private final AuthConverter authConverter;
   private final CookieUtil cookieUtil;
   private final ObjectMapper objectMapper;
   private final TokenService tokenService;
@@ -108,6 +106,8 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 
     cookieUtil.createAccessTokenCookie(response, accessToken);
     cookieUtil.createRefreshTokenCookie(response, refreshToken);
+
+    user.updateLastLoginAt();
 
     writeJsonResponse(response, CommonResponse.success(
       "LOGIN_SUCCESS",
