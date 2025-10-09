@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import until.the.eternity.das.auth.application.AuthConverter;
 import until.the.eternity.das.auth.dto.request.SocialSignUpRequest;
 import until.the.eternity.das.auth.dto.response.SignUpResponse;
+import until.the.eternity.das.common.application.S3Service;
 import until.the.eternity.das.common.exception.CustomException;
 import until.the.eternity.das.common.exception.GlobalExceptionCode;
 import until.the.eternity.das.oauth.dto.OauthUserDTO;
@@ -27,6 +28,7 @@ public class SocialAuthService {
   private final RoleRepository roleRepository;
   private final OauthUserRepository oauthUserRepository;
   private final AuthConverter authConverter;
+  private final S3Service s3Service;
 
   @Transactional
   public SignUpResponse completeSocialSignup(SocialSignUpRequest request) {
@@ -39,7 +41,11 @@ public class SocialAuthService {
     Role userRole = roleRepository.findByName(Name.USER)
       .orElseThrow(() -> new CustomException(GlobalExceptionCode.USER_ROLE_NOT_EXISTS));
 
-    User user = authConverter.fromOauthUserDTOToUser(dto, request.nickname(), userRole);
+    // 프로필 이미지 등록
+    String dirName = "profile";
+    String profileImageUrl = s3Service.uploadImage(request.file(), dirName);
+
+    User user = authConverter.fromOauthUserDTOToUser(dto, request.nickname(), userRole, profileImageUrl);
     userRepository.save(user);
 
     OauthUser oauthUser = OauthUser.builder()
