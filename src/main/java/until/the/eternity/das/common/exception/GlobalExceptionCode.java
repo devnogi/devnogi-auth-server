@@ -29,6 +29,14 @@ public enum GlobalExceptionCode implements ExceptionCode {
   ADMIN_ROLE_NOT_EXISTS(HttpStatus.BAD_REQUEST, "ADMIN Role이 DB에 존재하지 않습니다."),
   INVALID_PASSWORD(HttpStatus.BAD_REQUEST, "잘못된 비밀번호 입니다."),
 
+  // S3
+  FILE_EMPTY(HttpStatus.BAD_REQUEST, "파일이 존재하지 않습니다."),
+  FILE_UPLOAD_FAILED(INTERNAL_SERVER_ERROR, "파일 업로드에 실패했습니다. 잠시 후 다시 시도해주세요."),
+  FILE_DELETE_FAILED(INTERNAL_SERVER_ERROR, "파일 삭제에 실패했습니다. 잠시 후 다시 시도해주세요."),
+
+  // User
+  USER_INFO_UPDATE_FAILED(INTERNAL_SERVER_ERROR, "사용자 정보 수정에 실패했습니다. 잠시 후 다시 시도해주세요."),
+
   // OAUTH
   NOT_SUPPORTED_PROVIDER(HttpStatus.BAD_REQUEST, "지원하지 않는 소셜로그인입니다");
 
