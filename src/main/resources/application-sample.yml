@@ -77,6 +77,12 @@ spring:
     baseline-on-migrate: true
     baseline-version: 1
     locations: classpath:db/migration
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      # 값을 JSON 형태로 보내기 위한 설정
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
   resources:
     static-locations: classpath:/static/
   mvc:
@@ -88,6 +94,18 @@ spring:
   docker:
     compose:
       enabled: false
+  cloud:
+    aws:
+      region:
+        static: ${AWS_REGION}
+      credentials:
+        access-key: ${AWS_ACCESS_KEY}
+        secret-key: ${AWS_SECRET_KEY}
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 5MB
+
 
 jwt:
   secret-key: ${JWT_SECRET_KEY:e4f1a5c8d2b7e9f0a6c3d1b8e5f2c7a9d4e6f3b1a2c8d5e9f0b3a7c2d1e8f5a4}

@@ -60,6 +60,12 @@ dependencies {
     // Docker Compose
     developmentOnly("org.springframework.boot:spring-boot-docker-compose")
 
+    // Kafka
+    implementation("org.springframework.kafka:spring-kafka")
+
+    // AWS
+    implementation("io.awspring.cloud:spring-cloud-aws-starter-s3:3.1.0")
+
     // 테스트
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-test")
@@ -72,4 +78,20 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+}
+
+tasks.register<Copy>("copyYml") {
+    if (System.getenv("CI") == "true") {
+        println("CI environment detected. Copying application-sample.yml to application.yml")
+        from("src/main/resources")
+        include("application-sample.yml")
+        into("src/main/resources")
+        rename {
+            it.replace("-sample", "")
+        }
+    }
+}
+
+tasks.named("bootJar") {
+    dependsOn(tasks.named("copyYml"))
 }
