@@ -14,12 +14,13 @@ public class AuthConverter {
   // 이메일 회원가입 관련 로직
 
   public User fromUserSignUpRequestToUser(SignUpRequest request, String passwordHash,
-                                          Role role) {
+                                          Role role, String profileImageUrl) {
     return User.builder()
       .email(request.email())
       .passwordHash(passwordHash)
       .nickname(request.nickname())
       .status(Status.ACTIVE)
+      .profileImageUrl(profileImageUrl)
       .role(role)
       .build();
   }
@@ -28,13 +29,12 @@ public class AuthConverter {
     return SignUpResponse.of(user.getId());
   }
 
-  // 소셜 회원가입/로그인 관련 로직
-
   // 소셜 로그인 회원 저장 관련
-  public User fromOauthUserDTOToUser(OauthUserDTO oauthUserDTO, String nickname, Role role) {
+  public User fromOauthUserDTOToUser(OauthUserDTO oauthUserDTO, String nickname, Role role, String profileImageUrl) {
     return User.builder()
       .email(oauthUserDTO.getEmail())
       .nickname(nickname)
+      .profileImageUrl(profileImageUrl)
       .status(Status.ACTIVE)
       .role(role)
       .build();
