@@ -14,10 +14,8 @@ public class JwtConstant {
   private String secretKey;
   private Long accessTokenValidity;
   private Long refreshTokenValidity;
+  private String issuer;
+  private String accessTokenCookieName;
+  private String refreshTokenCookieName;
 
-  private final String ISSUER = "devnogi-auth-server";
-
-  private final String ACCESS_TOKEN_COOKIE_NAME = "access_token";
-
-  private final String REFRESH_TOKEN_COOKIE_NAME = "refresh_token";
 }

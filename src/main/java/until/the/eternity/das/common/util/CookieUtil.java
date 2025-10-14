@@ -19,7 +19,7 @@ public class CookieUtil {
    * @param accessToken
    */
   public void createAccessTokenCookie(HttpServletResponse response, String accessToken) {
-    ResponseCookie cookie = ResponseCookie.from(jwtConstant.getACCESS_TOKEN_COOKIE_NAME(), accessToken)
+    ResponseCookie cookie = ResponseCookie.from(jwtConstant.getAccessTokenCookieName(), accessToken)
       .httpOnly(true)
       .secure(true)
       .sameSite("None")
@@ -37,7 +37,7 @@ public class CookieUtil {
    * @param refreshToken
    */
   public void createRefreshTokenCookie(HttpServletResponse response, String refreshToken) {
-    ResponseCookie cookie = ResponseCookie.from(jwtConstant.getREFRESH_TOKEN_COOKIE_NAME(), refreshToken)
+    ResponseCookie cookie = ResponseCookie.from(jwtConstant.getRefreshTokenCookieName(), refreshToken)
       .httpOnly(true)
       .secure(true)
       .sameSite("None")

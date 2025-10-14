@@ -76,7 +76,7 @@ public class UserAuthenticationFilter extends OncePerRequestFilter {
     }
 
     return Arrays.stream(cookies)
-      .filter(cookie -> jwtConstant.getACCESS_TOKEN_COOKIE_NAME()
+      .filter(cookie -> jwtConstant.getAccessTokenCookieName()
         .equals(cookie.getName()))
       .map(Cookie::getValue)
       .findFirst()

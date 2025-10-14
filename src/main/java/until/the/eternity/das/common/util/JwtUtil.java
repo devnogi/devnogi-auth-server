@@ -81,7 +81,7 @@ public class JwtUtil {
     return Jwts.builder()
       .claims(claims)
       .subject(subject)
-      .issuer(jwtConstant.getISSUER())
+      .issuer(jwtConstant.getIssuer())
       .issuedAt(now)
       .expiration(expirationDate)
       .signWith(getSecretKey())

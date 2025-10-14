@@ -111,6 +111,9 @@ jwt:
   secret-key: ${JWT_SECRET_KEY:e4f1a5c8d2b7e9f0a6c3d1b8e5f2c7a9d4e6f3b1a2c8d5e9f0b3a7c2d1e8f5a4}
   access-token-validity: ${JWT_ACCESS_TOKEN_VALIDITY:3600} # seconds (1 hour)
   refresh-token-validity: ${JWT_REFRESH_TOKEN_VALIDITY:86400} # seconds (1 day)
+  issuer: devnogi
+  access-token-cookie-name: access_token
+  refresh-token-cookie-name: refresh_token
 
 
 springdoc:
