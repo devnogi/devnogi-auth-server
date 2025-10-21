@@ -36,13 +36,27 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         email = (String) attributes.get("email");
         break;
       case "naver":
-        Map<String, Object> response = MapUtil.cast(attributes.get("response"), Map.class);
+        Object responseObj = attributes.get("response");
+        if (!(responseObj instanceof Map)) {
+          log.error("Expected 'response' attribute to be a Map for provider 'naver', but got: {}",
+            responseObj == null ? "null" : responseObj.getClass()
+              .getName());
+          throw new CustomException(GlobalExceptionCode.NOT_SUPPORTED_PROVIDER);
+        }
+        Map<String, Object> response = MapUtil.cast(responseObj, Map.class);
         providerUserId = (String) response.get("id");
         email = (String) response.get("email");
         break;
       case "kakao":
         providerUserId = String.valueOf(attributes.get("id"));
-        Map<String, Object> kakaoAccount = MapUtil.cast(attributes.get("kakao_account"), Map.class);
+        Object kakaoAccountObj = attributes.get("kakao_account");
+        if (!(kakaoAccountObj instanceof Map)) {
+          log.error("Expected 'kakao_account' attribute to be a Map for provider 'kakao', but got: {}",
+            kakaoAccountObj == null ? "null" : kakaoAccountObj.getClass()
+              .getName());
+          throw new CustomException(GlobalExceptionCode.NOT_SUPPORTED_PROVIDER);
+        }
+        Map<String, Object> kakaoAccount = MapUtil.cast(kakaoAccountObj, Map.class);
         email = (String) kakaoAccount.get("email");
         break;
       default:
