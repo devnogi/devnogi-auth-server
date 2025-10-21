@@ -3,6 +3,7 @@ package until.the.eternity.das.user.presentation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -10,6 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 import until.the.eternity.das.common.response.CommonResponse;
 import until.the.eternity.das.user.application.UserService;
 import until.the.eternity.das.user.dto.request.UserInfoUpdateRequest;
+import until.the.eternity.das.user.dto.response.UserInfoResponse;
 
 @RestController
 @RequestMapping("/api/user")
@@ -24,6 +26,13 @@ public class UserController {
     @AuthenticationPrincipal Long id
   ) {
     return ResponseEntity.ok(CommonResponse.success(userService.updateUserInfo(request, id)));
+  }
+
+  @GetMapping("/info")
+  public ResponseEntity<CommonResponse<UserInfoResponse>> getInfo(
+    @AuthenticationPrincipal Long id
+  ) {
+    return ResponseEntity.ok(CommonResponse.success(userService.getUserInfo(id)));
   }
 
   // Todo 비밀번호 변경 기능 만들기
