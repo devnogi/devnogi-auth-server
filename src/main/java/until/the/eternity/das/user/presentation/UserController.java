@@ -18,7 +18,7 @@ public class UserController {
 
   private final UserService userService;
 
-  @PutMapping("info")
+  @PutMapping("/info")
   public ResponseEntity<CommonResponse<Boolean>> updateInfo(
     @ModelAttribute UserInfoUpdateRequest request,
     @AuthenticationPrincipal Long id
