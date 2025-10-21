@@ -80,18 +80,6 @@ tasks.withType<Test> {
     useJUnitPlatform()
 }
 
-tasks.register<Copy>("copyYml") {
-    if (System.getenv("CI") == "true") {
-        println("CI environment detected. Copying application-sample.yml to application.yml")
-        from("src/main/resources")
-        include("application-sample.yml")
-        into("src/main/resources")
-        rename {
-            it.replace("-sample", "")
-        }
-    }
-}
-
 tasks.named("bootJar") {
-    dependsOn(tasks.named("copyYml"))
+
 }
