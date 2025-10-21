@@ -108,6 +108,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
     cookieUtil.createRefreshTokenCookie(response, refreshToken);
 
     user.updateLastLoginAt();
+    userRepository.save(user);
 
     writeJsonResponse(response, CommonResponse.success(
       "LOGIN_SUCCESS",
