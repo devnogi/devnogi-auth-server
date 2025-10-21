@@ -72,7 +72,7 @@ public class AuthController {
   @ApiResponse(
     responseCode = "201",
     content = @Content(schema = @Schema(implementation = SignUpResponse.class)))
-  public ResponseEntity<CommonResponse<SignUpResponse>> signUpAdmin(@RequestBody SignUpRequest request) {
+  public ResponseEntity<CommonResponse<SignUpResponse>> signUpAdmin(@ModelAttribute SignUpRequest request) {
     return ResponseEntity.status(CREATED)
       .body(CommonResponse.success(authService.signUpAdmin(request)));
   }
