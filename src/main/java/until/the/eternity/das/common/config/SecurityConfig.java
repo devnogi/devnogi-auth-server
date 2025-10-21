@@ -8,6 +8,8 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import until.the.eternity.das.common.filter.UserAuthenticationFilter;
 import until.the.eternity.das.oauth.handler.OAuth2SuccessHandler;
 import until.the.eternity.das.oauth.service.CustomOAuth2UserService;
 
@@ -18,6 +20,7 @@ public class SecurityConfig {
 
   private final CustomOAuth2UserService customOAuth2UserService; // ✅ 소셜 로그인 사용자 매핑
   private final OAuth2SuccessHandler oAuth2SuccessHandler;       // ✅ 소셜 로그인 성공 핸들러
+  private final UserAuthenticationFilter userAuthenticationFilter;
 
   @Bean
   public BCryptPasswordEncoder bCryptPasswordEncoder() {
@@ -43,11 +46,11 @@ public class SecurityConfig {
       .permitAll()
       .requestMatchers("/api/demo/*")
       .permitAll() // Todo: 추후 삭제 예정
-      .requestMatchers("/api/auth/**")
-      .permitAll()
       .requestMatchers("/api/auth/admin/signup")
       .hasRole("SUPER_ADMIN") // Todo: Role이 String으로 되어 있어서 추후 수정 필요
-      .requestMatchers("/api/admin")
+      .requestMatchers("/api/auth/**")
+      .permitAll()
+      .requestMatchers("/api/admin/")
       .hasRole("ADMIN")
 
       // ✅ 소셜 로그인 관련 경로 허용
@@ -67,6 +70,11 @@ public class SecurityConfig {
     http.oauth2Login(oauth2 -> oauth2
       .userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService)) // provider에서 내려준 attributes 처리
       .successHandler(oAuth2SuccessHandler) // 로그인 성공 시 JWT 발급 및 후처리
+    );
+
+    http.addFilterBefore(
+      userAuthenticationFilter,
+      UsernamePasswordAuthenticationFilter.class
     );
 
     return http.build();
