@@ -10,6 +10,7 @@ import until.the.eternity.das.auth.dto.request.LoginRequest;
 import until.the.eternity.das.auth.dto.request.SignUpRequest;
 import until.the.eternity.das.auth.dto.response.LoginResultResponse;
 import until.the.eternity.das.auth.dto.response.SignUpResponse;
+import until.the.eternity.das.common.aop.ActiveUserRequired;
 import until.the.eternity.das.common.application.S3Service;
 import until.the.eternity.das.common.exception.CustomException;
 import until.the.eternity.das.common.exception.GlobalExceptionCode;
@@ -63,6 +64,7 @@ public class AuthService {
   }
 
   @Transactional
+  @ActiveUserRequired
   public LoginResultResponse login(LoginRequest request) {
     User user = userRepository.findByEmail(request.email())
       .orElseThrow(() -> new CustomException(GlobalExceptionCode.USER_NOT_EXISTS));

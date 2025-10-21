@@ -3,6 +3,7 @@ package until.the.eternity.das.user.application;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import until.the.eternity.das.common.aop.ActiveUserRequired;
 import until.the.eternity.das.common.application.KafkaProducerService;
 import until.the.eternity.das.common.application.S3Service;
 import until.the.eternity.das.common.exception.CustomException;
@@ -23,6 +24,7 @@ public class UserService {
   private final KafkaProducerService kafkaProducerService;
 
   @Transactional
+  @ActiveUserRequired
   public Boolean updateUserInfo(UserInfoUpdateRequest request, Long userId) {
     User user = userRepository.findById(userId)
       .orElseThrow(() -> new CustomException(GlobalExceptionCode.USER_NOT_EXISTS));
@@ -52,6 +54,7 @@ public class UserService {
   }
 
   @Transactional
+  @ActiveUserRequired
   public UserInfoResponse getUserInfo(Long userId) {
     User user = userRepository.findById(userId)
       .orElseThrow(() -> new CustomException(GlobalExceptionCode.USER_NOT_EXISTS));
@@ -60,6 +63,7 @@ public class UserService {
   }
 
   @Transactional
+  @ActiveUserRequired
   public Boolean withdrawUser(Long userId) {
     User user = userRepository.findById(userId)
       .orElseThrow(() -> new CustomException(GlobalExceptionCode.USER_NOT_EXISTS));
