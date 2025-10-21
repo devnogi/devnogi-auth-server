@@ -8,6 +8,7 @@ import until.the.eternity.das.common.application.S3Service;
 import until.the.eternity.das.common.exception.CustomException;
 import until.the.eternity.das.common.exception.GlobalExceptionCode;
 import until.the.eternity.das.user.dto.request.UserInfoUpdateRequest;
+import until.the.eternity.das.user.dto.response.UserInfoResponse;
 import until.the.eternity.das.user.dto.response.UserInfoUpdateEvent;
 import until.the.eternity.das.user.entity.User;
 import until.the.eternity.das.user.entity.UserRepository;
@@ -47,6 +48,14 @@ public class UserService {
     } catch (Exception e) {
       throw new CustomException(GlobalExceptionCode.USER_INFO_UPDATE_FAILED);
     }
+  }
+
+  @Transactional
+  public UserInfoResponse getUserInfo(Long userId) {
+    User user = userRepository.findById(userId)
+      .orElseThrow(() -> new CustomException(GlobalExceptionCode.USER_NOT_EXISTS));
+
+    return UserInfoResponse.of(user);
   }
 
   @Transactional
