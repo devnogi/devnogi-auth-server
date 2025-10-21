@@ -5,6 +5,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -33,6 +34,13 @@ public class UserController {
     @AuthenticationPrincipal Long id
   ) {
     return ResponseEntity.ok(CommonResponse.success(userService.getUserInfo(id)));
+  }
+
+  @PatchMapping("/withdraw")
+  public ResponseEntity<CommonResponse<Boolean>> withdrawUser(
+    @AuthenticationPrincipal Long id
+  ) {
+    return ResponseEntity.ok(CommonResponse.success(userService.withdrawUser(id)));
   }
 
   // Todo 비밀번호 변경 기능 만들기
