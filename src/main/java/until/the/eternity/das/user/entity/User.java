@@ -11,7 +11,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -23,6 +22,8 @@ import org.hibernate.annotations.UpdateTimestamp;
 import until.the.eternity.das.role.entity.Role;
 import until.the.eternity.das.user.entity.enums.InactivatedType;
 import until.the.eternity.das.user.entity.enums.Status;
+
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "users")
@@ -41,8 +42,8 @@ public class User {
   @Comment("사용자 이메일 (로그인 ID)")
   private String email;
 
-  @Column(name = "password_hash", nullable = false, length = 255)
-  @Comment("암호화된 비밀번호")
+  @Column(name = "password_hash", length = 255)
+  @Comment("암호화된 비밀번호 (소셜로그인 회원은 null)")
   private String passwordHash;
 
   @Column(nullable = false, unique = true, length = 50)
@@ -84,5 +85,18 @@ public class User {
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "role_id")
   private Role role;
+
+  public void updateUserInfo(String nickname, String profileImageUrl) {
+    this.nickname = nickname;
+    this.profileImageUrl = profileImageUrl;
+  }
+
+  public void updatePassword(String passwordHash) {
+    this.passwordHash = passwordHash;
+  }
+
+  public void updateLastLoginAt() {
+    this.lastLoginAt = LocalDateTime.now();
+  }
 
 }

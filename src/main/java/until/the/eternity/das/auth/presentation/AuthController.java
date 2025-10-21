@@ -1,23 +1,32 @@
 package until.the.eternity.das.auth.presentation;
 
-import static org.springframework.http.HttpStatus.CREATED;
-
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import until.the.eternity.das.auth.application.AuthService;
+import until.the.eternity.das.auth.dto.request.LoginRequest;
 import until.the.eternity.das.auth.dto.request.SignUpRequest;
+import until.the.eternity.das.auth.dto.request.SocialSignUpRequest;
+import until.the.eternity.das.auth.dto.response.LoginResponse;
+import until.the.eternity.das.auth.dto.response.LoginResultResponse;
 import until.the.eternity.das.auth.dto.response.SignUpResponse;
+import until.the.eternity.das.common.response.CommonResponse;
+import until.the.eternity.das.common.util.CookieUtil;
+import until.the.eternity.das.oauth.service.SocialAuthService;
+
+import static org.springframework.http.HttpStatus.CREATED;
 
 @RestController
 @RequiredArgsConstructor
@@ -25,6 +34,8 @@ import until.the.eternity.das.auth.dto.response.SignUpResponse;
 public class AuthController {
 
   private final AuthService authService;
+  private final SocialAuthService socialAuthService;
+  private final CookieUtil cookieUtil;
 
   /**
    * 회원 가입 API
@@ -34,14 +45,15 @@ public class AuthController {
    */
   @PostMapping("/signup")
   @Operation(summary = "회원 가입 API", description = """
-      - Description : 이 API는 회원 가입을 요청합니다.
-      - Assignee : 안나
-      """)
+    - Description : 이 API는 회원 가입을 요청합니다.
+    - Assignee : 안나
+    """)
   @ApiResponse(
-      responseCode = "201",
-      content = @Content(schema = @Schema(implementation = SignUpResponse.class)))
-  public ResponseEntity<SignUpResponse> signUp(@RequestBody SignUpRequest request) {
-    return ResponseEntity.status(CREATED).body(authService.signUpUser(request));
+    responseCode = "201",
+    content = @Content(schema = @Schema(implementation = SignUpResponse.class)))
+  public ResponseEntity<CommonResponse<SignUpResponse>> signUp(@ModelAttribute SignUpRequest request) {
+    return ResponseEntity.status(CREATED)
+      .body(CommonResponse.success(authService.signUpUser(request)));
   }
 
   //Todo : SuperAdmin만 접근 가능하도록 권한 설정 필요
@@ -54,14 +66,15 @@ public class AuthController {
    */
   @PostMapping("/admin/signup")
   @Operation(summary = "관리자 가입 API", description = """
-      - Description : 이 API는 관리자 가입을 요청합니다.
-      - Assignee : 안나
-      """)
+    - Description : 이 API는 관리자 가입을 요청합니다.
+    - Assignee : 안나
+    """)
   @ApiResponse(
-      responseCode = "201",
-      content = @Content(schema = @Schema(implementation = SignUpResponse.class)))
-  public ResponseEntity<SignUpResponse> signUpAdmin(@RequestBody SignUpRequest request) {
-    return ResponseEntity.status(CREATED).body(authService.signUpAdmin(request));
+    responseCode = "201",
+    content = @Content(schema = @Schema(implementation = SignUpResponse.class)))
+  public ResponseEntity<CommonResponse<SignUpResponse>> signUpAdmin(@ModelAttribute SignUpRequest request) {
+    return ResponseEntity.status(CREATED)
+      .body(CommonResponse.success(authService.signUpAdmin(request)));
   }
 
 
@@ -73,19 +86,19 @@ public class AuthController {
    */
   @GetMapping("/check-email")
   @Operation(summary = "이메일 중복 확인 API", description = """
-      - Description : 입력한 이메일이 이미 가입되어 있는지 확인합니다.
-      - 사용 가능한 이메일이면 true, 중복된 이메일이면 false를 반환합니다.
-      - Assignee : 안나
-      """)
-  public ResponseEntity<Boolean> checkEmail(
-      @RequestParam(name = "email") @NotBlank String email) {
+    - Description : 입력한 이메일이 이미 가입되어 있는지 확인합니다.
+    - 사용 가능한 이메일이면 true, 중복된 이메일이면 false를 반환합니다.
+    - Assignee : 안나
+    """)
+  public ResponseEntity<CommonResponse<Boolean>> checkEmail(
+    @RequestParam(name = "email") @NotBlank String email) {
 
     // 이메일 형식 유효성 검증
     authService.isValidEmailFormat(email);
 
     boolean exists = authService.existsByEmail(email);
     // exists == true면 이미 사용중인 이메일
-    return ResponseEntity.ok(!exists); // true = 사용 가능, false = 중복됨
+    return ResponseEntity.ok(CommonResponse.success(!exists)); // true = 사용 가능, false = 중복됨
   }
 
   /**
@@ -96,20 +109,43 @@ public class AuthController {
    */
   @GetMapping("/check-nickname")
   @Operation(summary = "닉네임 중복 확인 API", description = """
-      - Description : 입력한 닉네임이 이미 사용 중인지 확인합니다.
-      - 사용 가능한 닉네임이면 true, 중복된 닉네임이면 false를 반환합니다.
-      - Assignee : 안나
-      """)
-  public ResponseEntity<Boolean> checkNickname(
-      @RequestParam(name = "nickname") @NotBlank String nickname) {
+    - Description : 입력한 닉네임이 이미 사용 중인지 확인합니다.
+    - 사용 가능한 닉네임이면 true, 중복된 닉네임이면 false를 반환합니다.
+    - Assignee : 안나
+    """)
+  public ResponseEntity<CommonResponse<Boolean>> checkNickname(
+    @RequestParam(name = "nickname") @NotBlank String nickname) {
 
     // 닉네임 유효성 검증
     authService.isValidNicknameFormat(nickname);
 
     boolean exists = authService.existsByNickname(nickname);
     // exists == true면 이미 사용중인 닉네임
-    return ResponseEntity.ok(!exists); // true = 사용 가능, false = 중복됨
+    return ResponseEntity.ok(CommonResponse.success(!exists)); // true = 사용 가능, false = 중복됨
   }
 
 
+  @PostMapping("/signup/social")
+  public ResponseEntity<CommonResponse<SignUpResponse>> completeSocialSignup(
+    @ModelAttribute SocialSignUpRequest request
+  ) {
+    SignUpResponse result = socialAuthService.completeSocialSignup(request);
+    return ResponseEntity.status(CREATED)
+      .body(CommonResponse.success(result));
+  }
+
+  @PostMapping("/login")
+  public ResponseEntity<CommonResponse<LoginResponse>> login(
+    @RequestBody LoginRequest request,
+    HttpServletResponse response
+  ) {
+    LoginResultResponse loginResultResponse = authService.login(request);
+
+    cookieUtil.createAccessTokenCookie(response, loginResultResponse.accessToken());
+    cookieUtil.createRefreshTokenCookie(response, loginResultResponse.refreshToken());
+
+    LoginResponse loginResponse = LoginResponse.from(loginResultResponse.user());
+
+    return ResponseEntity.ok(CommonResponse.success(loginResponse));
+  }
 }
