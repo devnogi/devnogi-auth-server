@@ -12,6 +12,7 @@ import until.the.eternity.das.user.dto.response.UserInfoResponse;
 import until.the.eternity.das.user.dto.response.UserInfoUpdateEvent;
 import until.the.eternity.das.user.entity.User;
 import until.the.eternity.das.user.entity.UserRepository;
+import until.the.eternity.das.user.entity.enums.Status;
 
 @Service
 @RequiredArgsConstructor
@@ -56,6 +57,21 @@ public class UserService {
       .orElseThrow(() -> new CustomException(GlobalExceptionCode.USER_NOT_EXISTS));
 
     return UserInfoResponse.of(user);
+  }
+
+  @Transactional
+  public Boolean withdrawUser(Long userId) {
+    User user = userRepository.findById(userId)
+      .orElseThrow(() -> new CustomException(GlobalExceptionCode.USER_NOT_EXISTS));
+
+    Status inactive = Status.INACTIVE;
+
+    try {
+      user.updateUserStatus(inactive);
+      return true;
+    } catch (Exception e) {
+      throw new CustomException(GlobalExceptionCode.SERVER_ERROR);
+    }
   }
 
   @Transactional
