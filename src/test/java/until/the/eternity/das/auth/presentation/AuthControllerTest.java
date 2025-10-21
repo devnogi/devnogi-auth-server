@@ -2,12 +2,14 @@ package until.the.eternity.das.auth.presentation;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import until.the.eternity.das.auth.application.AuthService;
@@ -17,6 +19,8 @@ import until.the.eternity.das.auth.dto.response.LoginResultResponse;
 import until.the.eternity.das.auth.dto.response.SignUpResponse;
 import until.the.eternity.das.common.config.TestSecurityConfig;
 import until.the.eternity.das.common.util.CookieUtil;
+import until.the.eternity.das.role.entity.Role;
+import until.the.eternity.das.role.entity.enums.Name;
 import until.the.eternity.das.user.entity.User;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -43,11 +47,43 @@ class AuthControllerTest {
   @MockitoBean
   private CookieUtil cookieUtil;
 
+  private MockMultipartFile mockFile;
+  private SignUpRequest signUpRequest;
+  private LoginRequest loginRequest;
+  private User user;
+  private Role userRole;
+
+  @BeforeEach
+  void setUp() {
+    // 테스트용 MockMultipartFile 생성
+    mockFile = new MockMultipartFile(
+      "file", // DTO의 필드명과 일치
+      "profile.jpg",
+      "image/jpeg",
+      "test image content".getBytes()
+    );
+
+    // SignUpRequest에 mockFile 추가, 비밀번호 형식 준수
+    signUpRequest = new SignUpRequest("test@test.com", "password123!", "testuser", mockFile);
+    loginRequest = new LoginRequest("test@test.com", "password123!");
+    userRole = Role.builder()
+      .id(1L)
+      .name(Name.USER)
+      .build();
+    user = User.builder()
+      .id(1L)
+      .email(signUpRequest.email())
+      .passwordHash("encodedPassword")
+      .nickname(signUpRequest.nickname())
+      .profileImageUrl("mocked-profile-image-url")
+      .build();
+  }
+
   @Test
   @DisplayName("회원가입 API 성공 테스트")
   void signUpApi_Success() throws Exception {
     // given
-    SignUpRequest request = new SignUpRequest("test@test.com", "password", "testuser");
+    SignUpRequest request = signUpRequest;
     SignUpResponse response = SignUpResponse.builder()
       .id(1L)
       .build();
@@ -66,8 +102,7 @@ class AuthControllerTest {
   @DisplayName("회원가입 API 실패 - 잘못된 이메일 형식")
   void signUpApi_Fail_InvalidEmail() throws Exception {
     // given
-    SignUpRequest request = new SignUpRequest("test", "password", "testuser");
-
+    SignUpRequest request = signUpRequest;
     // when & then
     mockMvc.perform(post("/api/v1/auth/signup")
         .contentType(MediaType.APPLICATION_JSON)
