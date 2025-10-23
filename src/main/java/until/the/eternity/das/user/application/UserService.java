@@ -68,14 +68,8 @@ public class UserService {
     User user = userRepository.findById(userId)
       .orElseThrow(() -> new CustomException(GlobalExceptionCode.USER_NOT_EXISTS));
 
-    Status inactive = Status.INACTIVE;
-
-    try {
-      user.updateUserStatus(inactive);
-      return true;
-    } catch (Exception e) {
-      throw new CustomException(GlobalExceptionCode.SERVER_ERROR);
-    }
+    user.updateUserStatus(Status.INACTIVE);
+    return true;
   }
 
   @Transactional
