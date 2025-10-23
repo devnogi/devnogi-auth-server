@@ -99,4 +99,9 @@ public class User {
     this.lastLoginAt = LocalDateTime.now();
   }
 
+  public void updateUserStatus(Status status) {
+    this.status = status;
+    this.inactivatedAt = LocalDateTime.now();
+  }
+
 }
