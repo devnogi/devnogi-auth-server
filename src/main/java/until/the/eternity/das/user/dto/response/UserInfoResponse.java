@@ -10,7 +10,7 @@ public record UserInfoResponse(
   LocalDateTime createdAt,
   LocalDateTime lastLoginAt
 ) {
-  static public UserInfoResponse of(User user) {
+  public static UserInfoResponse of(User user) {
     return new UserInfoResponse(
       user.getNickname(),
       user.getProfileImageUrl(),
