@@ -126,6 +126,13 @@ public class AuthController {
 
 
   @PostMapping("/signup/social")
+  @Operation(summary = "소셜 회원가입 API", description = """
+    - Description : 이 API는 소셜 회원가입을 요청합니다
+    - Assignee : 장욱
+    """)
+  @ApiResponse(
+    responseCode = "201",
+    content = @Content(schema = @Schema(implementation = SignUpResponse.class)))
   public ResponseEntity<CommonResponse<SignUpResponse>> completeSocialSignup(
     @ModelAttribute SocialSignUpRequest request
   ) {
@@ -135,6 +142,13 @@ public class AuthController {
   }
 
   @PostMapping("/login")
+  @Operation(summary = "이메일 로그인 API", description = """
+    - Description : 이 API는 로그인을 요청합니다
+    - Assignee : 장욱
+    """)
+  @ApiResponse(
+    responseCode = "200",
+    content = @Content(schema = @Schema(implementation = LoginResponse.class)))
   public ResponseEntity<CommonResponse<LoginResponse>> login(
     @RequestBody LoginRequest request,
     HttpServletResponse response
