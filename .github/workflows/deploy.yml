@@ -3,7 +3,7 @@ name: CI/CD with AWS ECR
 on:
   push:
     branches:
-      - dev
+      - main
 
 # 워크플로우에서 사용할 공통 변수 설정
 env:
