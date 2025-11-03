@@ -129,6 +129,11 @@ public class JwtUtil {
     return claims.get("userId", Long.class);
   }
 
+  public String getRoleFromToken(String token) {
+    Claims claims = extractAllClaims(token);
+    return claims.get("role", String.class);
+  }
+
   /**
    * 토큰 유효성 검증
    *
