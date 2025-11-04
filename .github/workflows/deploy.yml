@@ -41,8 +41,19 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }} # Git 커밋 해시를 이미지 태그로 사용
         run: |
+          # 1. 해시 태그로 빌드
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          
+          # 2. 이미지에 'latest' 태그 추가
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          
+          # 3. 해시 태그 이미지 푸시
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          
+          # 4. latest 태그 이미지 푸시
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          
+          # 5. GITHUB_OUTPUT에 해시 태그 이미지를 기본값으로 설정
           echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
       # 5. EC2에 접속하여 배포 스크립트 실행
@@ -57,7 +68,7 @@ jobs:
 
             # 1. EC2 서버에 .env 파일을 동적으로 생성
             # GitHub Secrets 값을 사용하여 .env 파일 내용을 덮어씁니다.
-            sudo cat << EOF > .env
+            cat << EOF > .env
             # Spring Application
             SPRING_PROFILES_ACTIVE=prod
             SERVER_PORT=${{ secrets.SERVER_PORT }}
@@ -106,14 +117,17 @@ jobs:
             EOF
 
             # 2. ECR 로그인
-            sudo aws ecr get-login-password --region ${{ env.AWS_REGION }} | sudo docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}
+            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}
 
             # 3. Docker Compose 실행 (환경 변수 사용)
             export IMAGE_TAG=${{ github.sha }}
+
+            # 기존 컨테이너 중지
+            docker-compose down
             
             # -E 옵션으로 환경 변수를 sudo 컨텍스트에 전달합니다.
-            sudo -E docker-compose pull app
-            sudo -E docker-compose up -d --remove-orphans
+            docker-compose pull app
+            docker-compose up -d --remove-orphans
 
             # 4. 불필요한 Docker 이미지 정리
-            sudo docker image prune -f
+            docker image prune -f
