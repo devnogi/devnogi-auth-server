@@ -124,7 +124,12 @@ public class AuthController {
     return ResponseEntity.ok(CommonResponse.success(!exists)); // true = 사용 가능, false = 중복됨
   }
 
-
+  /**
+   * 소셜 회원가입 API
+   *
+   * @param request 소셜 회원가입 요청정보(이메일, 닉네임)
+   * @return 생성된 사용자의 ID값
+   */
   @PostMapping("/signup/social")
   @Operation(summary = "소셜 회원가입 API", description = """
     - Description : 이 API는 소셜 회원가입을 요청합니다
@@ -141,6 +146,13 @@ public class AuthController {
       .body(CommonResponse.success(result));
   }
 
+  /**
+   * 이메일 로그인 API
+   *
+   * @param request 로그인 요청정보(이메일, 비밀번호)
+   * @param response 발급된 JWT를 Cookie에 담기 위한 HttpResponse
+   * @return 로그인 된 유저의 정보
+   */
   @PostMapping("/login")
   @Operation(summary = "이메일 로그인 API", description = """
     - Description : 이 API는 로그인을 요청합니다

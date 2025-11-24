@@ -44,14 +44,12 @@ public class SecurityConfig {
       .requestMatchers("/swagger", "/swagger-ui.html", "/swagger-ui/**",
         "/api-docs", "/api-docs/**", "/v3/api-docs/**")
       .permitAll()
-      .requestMatchers("/api/demo/*")
-      .permitAll() // Todo: 추후 삭제 예정
       .requestMatchers("/api/auth/admin/signup")
-      .hasRole("SUPER_ADMIN") // Todo: Role이 String으로 되어 있어서 추후 수정 필요
+      .hasRole("SUPER_ADMIN")
       .requestMatchers("/api/auth/**")
       .permitAll()
       .requestMatchers("/api/admin/")
-      .hasRole("ADMIN")
+      .hasAnyRole("ADMIN", "SUPER_ADMIN")
 
       // ✅ 소셜 로그인 관련 경로 허용
       .requestMatchers("/oauth2/**", "/login/oauth2/**")

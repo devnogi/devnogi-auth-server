@@ -7,6 +7,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -17,6 +19,7 @@ import until.the.eternity.das.common.util.JwtUtil;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
 @Component
 @RequiredArgsConstructor
@@ -40,21 +43,22 @@ public class UserAuthenticationFilter extends OncePerRequestFilter {
 
         // 3. 토큰이 유효하면, JwtUtil을 사용해 사용자 ID 추출
         Long userId = jwtUtil.getUserIdFromToken(token);
+        String role = jwtUtil.getRoleFromToken(token);
+
+        GrantedAuthority authority = new SimpleGrantedAuthority("ROLE_" + role);
+        List<GrantedAuthority> authorities = Collections.singletonList(authority);
 
         // 4. 추출한 userId로 Spring Security 인증 객체 생성
         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-          userId, // Principal (사용자 식별자)
-          null,   // Credentials (자격 증명)
-          Collections.emptyList() // Authorities (권한 목록)
+          userId,
+          null,
+          authorities
         );
 
-        // 5. SecurityContext에 인증 정보 저장
         SecurityContextHolder.getContext()
           .setAuthentication(authentication);
 
       } catch (CustomException e) {
-        // 6. validateToken에서 CustomException이 발생하면 (유효하지 않은 토큰),
-        //    SecurityContext를 깨끗하게 비웁니다.
         SecurityContextHolder.clearContext();
       }
     }
