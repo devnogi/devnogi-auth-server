@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
@@ -163,9 +164,13 @@ public class AuthController {
     content = @Content(schema = @Schema(implementation = LoginResponse.class)))
   public ResponseEntity<CommonResponse<LoginResponse>> login(
     @RequestBody LoginRequest request,
-    HttpServletResponse response
+    HttpServletResponse response,
+    HttpServletRequest httpServletRequest
   ) {
-    LoginResultResponse loginResultResponse = authService.login(request);
+    String clientIp = httpServletRequest.getRemoteAddr();
+    String userAgent = httpServletRequest.getHeader("User-Agent");
+    
+    LoginResultResponse loginResultResponse = authService.login(request, clientIp, userAgent);
 
     cookieUtil.createAccessTokenCookie(response, loginResultResponse.accessToken());
     cookieUtil.createRefreshTokenCookie(response, loginResultResponse.refreshToken());
