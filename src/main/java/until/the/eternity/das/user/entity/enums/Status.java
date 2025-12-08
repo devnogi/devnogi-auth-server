@@ -1,13 +1,15 @@
 package until.the.eternity.das.user.entity.enums;
 
-import lombok.*;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 
 @Getter
 @RequiredArgsConstructor
 public enum Status {
-    ACTIVE("활성화"),
-    INACTIVE("비활성화"),
-    BANNED("정지됨");
+  ACTIVE("활성화"),
+  INACTIVE("비활성화"),
+  PENDING("이메일 검증 대기"),
+  BANNED("정지됨");
 
-    private final String label;
+  private final String label;
 }
