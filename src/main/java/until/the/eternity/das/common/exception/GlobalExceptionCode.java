@@ -31,6 +31,11 @@ public enum GlobalExceptionCode implements ExceptionCode {
   USER_DISABLED(UNAUTHORIZED, "비활성화된 사용자입니다."),
   ACCOUNT_LOCKED(UNAUTHORIZED, "계정이 잠금상태입니다."),
 
+  // Email Verification
+  EMAIL_SEND_FAIL(INTERNAL_SERVER_ERROR, "이메일 발송에 실패했습니다."),
+  TOKEN_EXPIRED(HttpStatus.BAD_REQUEST, "만료된 인증 토큰입니다."),
+  EMAIL_NOT_VERIFIED(UNAUTHORIZED, "이메일 인증이 완료되지 않았습니다."),
+
   // S3
   FILE_EMPTY(HttpStatus.BAD_REQUEST, "파일이 존재하지 않습니다."),
   FILE_UPLOAD_FAILED(INTERNAL_SERVER_ERROR, "파일 업로드에 실패했습니다. 잠시 후 다시 시도해주세요."),
