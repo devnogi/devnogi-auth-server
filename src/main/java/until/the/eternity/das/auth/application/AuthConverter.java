@@ -19,7 +19,7 @@ public class AuthConverter {
       .email(request.email())
       .passwordHash(passwordHash)
       .nickname(request.nickname())
-      .status(Status.ACTIVE)
+      .status(Status.PENDING)
       .profileImageUrl(profileImageUrl)
       .role(role)
       .build();
