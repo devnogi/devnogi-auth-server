@@ -169,7 +169,7 @@ public class AuthController {
   ) {
     String clientIp = httpServletRequest.getRemoteAddr();
     String userAgent = httpServletRequest.getHeader("User-Agent");
-    
+
     LoginResultResponse loginResultResponse = authService.login(request, clientIp, userAgent);
 
     cookieUtil.createAccessTokenCookie(response, loginResultResponse.accessToken());
@@ -178,5 +178,22 @@ public class AuthController {
     LoginResponse loginResponse = LoginResponse.from(loginResultResponse.user());
 
     return ResponseEntity.ok(CommonResponse.success(loginResponse));
+  }
+
+  /**
+   * 이메일 인증 확인 API
+   *
+   * @param token 이메일로 전송된 인증 토큰 (쿼리 파라미터)
+   * @return 인증 성공 메시지
+   */
+  @GetMapping("/verify-email")
+  @Operation(summary = "이메일 인증 확인 API", description = """
+    - Description : 이메일 인증 링크를 통해 계정을 활성화합니다.
+    """)
+  public ResponseEntity<CommonResponse<String>> verifyEmail(@RequestParam(name = "token") String token) {
+
+    authService.verifyEmail(token);
+
+    return ResponseEntity.ok(CommonResponse.success("이메일 인증이 성공적으로 완료되었습니다."));
   }
 }
