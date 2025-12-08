@@ -10,6 +10,7 @@ import until.the.eternity.das.auth.dto.request.LoginRequest;
 import until.the.eternity.das.auth.dto.request.SignUpRequest;
 import until.the.eternity.das.auth.dto.response.LoginResultResponse;
 import until.the.eternity.das.auth.dto.response.SignUpResponse;
+import until.the.eternity.das.common.application.EmailService;
 import until.the.eternity.das.common.application.S3Service;
 import until.the.eternity.das.common.exception.CustomException;
 import until.the.eternity.das.common.exception.GlobalExceptionCode;
@@ -23,10 +24,14 @@ import until.the.eternity.das.role.entity.Role;
 import until.the.eternity.das.role.entity.RoleRepository;
 import until.the.eternity.das.role.entity.enums.Name;
 import until.the.eternity.das.token.application.TokenService;
+import until.the.eternity.das.token.entity.EmailVerificationToken;
+import until.the.eternity.das.token.entity.EmailVerificationTokenRepository;
 import until.the.eternity.das.user.entity.User;
 import until.the.eternity.das.user.entity.UserRepository;
+import until.the.eternity.das.user.entity.enums.Status;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -38,16 +43,16 @@ public class AuthService {
   private final RoleRepository roleRepository;
   private final AccountLockRepository accountLockRepository;
   private final LoginHistoryRepository loginHistoryRepository;
+  private final EmailVerificationTokenRepository emailVerificationTokenRepository;
   private final BCryptPasswordEncoder bCryptPasswordEncoder;
   private final JwtUtil jwtUtil;
   private final TokenService tokenService;
   private final S3Service s3Service;
-
+  private final EmailService emailService;
 
   @Transactional
   public SignUpResponse signUpUser(SignUpRequest request) {
 
-    // 기본 USER Role이 존재하는지 확인
     Role userRole = roleRepository.findByName(Name.USER)
       .orElseThrow(() -> {
         log.error("USER Role이 DB에 존재하지 않습니다.");
@@ -61,7 +66,6 @@ public class AuthService {
   @Transactional
   public SignUpResponse signUpAdmin(SignUpRequest request) {
 
-    // Admin Role이 존재하는지 확인
     Role adminRole = roleRepository.findByName(Name.ADMIN)
       .orElseThrow(() -> {
         log.error("ADMIN Role이 DB에 존재하지 않습니다.");
@@ -76,6 +80,10 @@ public class AuthService {
     User user = userRepository.findByEmail(request.email())
       .orElseThrow(() -> new CustomException(GlobalExceptionCode.USER_NOT_EXISTS));
 
+    if (user.getStatus() == Status.PENDING) {
+      throw new CustomException(GlobalExceptionCode.EMAIL_NOT_VERIFIED);
+    }
+
     AccountLock accountLock = accountLockRepository.findById(user.getId())
       .orElseGet(() -> {
         AccountLock newLock = AccountLock.builder()
@@ -89,9 +97,8 @@ public class AuthService {
 
     if (accountLock.getLockedUntil() != null && accountLock.getLockedUntil()
       .isAfter(LocalDateTime.now())) {
-      // 잠금 상태인 경우 이력 저장 후 예외 발생
-      saveLoginHistory(user, false, Reason.LOCKED_ACCOUNT, clientIp, userAgent); // Reason에 LOCKED_ACCOUNT가 없으면 추가 필요
-      throw new CustomException(GlobalExceptionCode.ACCOUNT_LOCKED); // GlobalExceptionCode에 추가 필요
+      saveLoginHistory(user, false, Reason.LOCKED_ACCOUNT, clientIp, userAgent);
+      throw new CustomException(GlobalExceptionCode.ACCOUNT_LOCKED);
     }
 
     if (!bCryptPasswordEncoder.matches(request.password(), user.getPasswordHash())) {
@@ -118,22 +125,20 @@ public class AuthService {
    * 로그인 실패 핸들링
    */
   private void handleLoginFailure(User user, AccountLock accountLock, String ip, String userAgent) {
-    accountLock.increaseFailAttempts(); // 실패 횟수 증가
+    accountLock.increaseFailAttempts();
 
-    // 5회 이상 실패 시 5분 잠금
     if (accountLock.getFailedAttempts() >= 5) {
-      accountLock.lockAccount(); // 5분 잠금
+      accountLock.lockAccount();
     }
 
-    // Dirty Checking으로 AccountLock 업데이트 됨 (Transactional)
-    saveLoginHistory(user, false, Reason.WRONG_PASSWORD, ip, userAgent); // Reason.WRONG_PASSWORD 확인 필요
+    saveLoginHistory(user, false, Reason.WRONG_PASSWORD, ip, userAgent);
   }
 
   /**
    * 로그인 성공 핸들링
    */
   private void handleLoginSuccess(User user, AccountLock accountLock, String ip, String userAgent) {
-    accountLock.reset(); // 실패 횟수 및 잠금 초기화
+    accountLock.reset();
     saveLoginHistory(user, true, null, ip, userAgent);
   }
 
@@ -154,24 +159,18 @@ public class AuthService {
   }
 
   private SignUpResponse signUp(SignUpRequest request, Role role) {
-    // 이메일 형식 유효성 검증
     isValidEmailFormat(request.email());
-    // 이메일 중복 검증
     if (userRepository.existsByEmail(request.email())) {
       throw new CustomException(GlobalExceptionCode.EMAIL_ALREADY_EXISTS);
     }
 
-    // 닉네임 형식 유효성 검증
     isValidNicknameFormat(request.nickname());
-    // 닉네임 중복 검증
     if (userRepository.existsByNickname(request.nickname())) {
       throw new CustomException(GlobalExceptionCode.NICKNAME_ALREADY_EXISTS);
     }
 
-    // 비밀번호 유효성 검증
     isValidPasswordFormat(request.password());
 
-    // 프로필 이미지 등록
     String profileImageUrl = null;
     if (request.file() != null) {
       String dirName = "profile";
@@ -183,9 +182,40 @@ public class AuthService {
 
     userRepository.save(user);
 
+    createAndSendVerificationToken(user);
+
     return authConverter.fromUserToUserSignUpResponse(user);
   }
 
+  private void createAndSendVerificationToken(User user) {
+    String token = UUID.randomUUID()
+      .toString();
+    EmailVerificationToken verificationToken = EmailVerificationToken.builder()
+      .user(user)
+      .token(token)
+      .expiresAt(LocalDateTime.now()
+        .plusHours(24))
+      .build();
+
+    emailVerificationTokenRepository.save(verificationToken);
+    emailService.sendVerificationEmail(user.getEmail(), token);
+  }
+
+  @Transactional
+  public void verifyEmail(String token) {
+    EmailVerificationToken verificationToken = emailVerificationTokenRepository.findByToken(token)
+      .orElseThrow(() -> new CustomException(GlobalExceptionCode.INVALID_TOKEN));
+
+    if (verificationToken.getExpiresAt()
+      .isBefore(LocalDateTime.now())) {
+      throw new CustomException(GlobalExceptionCode.TOKEN_EXPIRED);
+    }
+
+    User user = verificationToken.getUser();
+    user.updateUserStatus(Status.ACTIVE);
+
+    emailVerificationTokenRepository.delete(verificationToken);
+  }
 
   private void isValidPasswordFormat(String password) {
     if (password == null || !password
