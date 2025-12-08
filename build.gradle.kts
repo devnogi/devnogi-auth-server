@@ -66,6 +66,9 @@ dependencies {
     // AWS
     implementation("io.awspring.cloud:spring-cloud-aws-starter-s3:3.1.0")
 
+    // Mail
+    implementation("org.springframework.boot:spring-boot-starter-mail")
+
     // 테스트
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-test")
