@@ -193,6 +193,7 @@ public class AuthService {
     EmailVerificationToken verificationToken = EmailVerificationToken.builder()
       .user(user)
       .token(token)
+      .type(EmailVerificationToken.TokenType.EMAIL_VERIFICATION)
       .expiresAt(LocalDateTime.now()
         .plusHours(24))
       .build();
