@@ -11,6 +11,7 @@ import until.the.eternity.das.common.exception.CustomException;
 import until.the.eternity.das.common.exception.GlobalExceptionCode;
 
 import java.io.IOException;
+import java.net.URI;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.UUID;
@@ -50,9 +51,15 @@ public class S3Service {
   // 이미지 삭제
   public void deleteImage(String imageUrl) {
     try {
-      String key = imageUrl.substring(imageUrl.indexOf("com/") + 4);
+      URI uri = new URI(imageUrl);
+      String path = uri.getPath();
+
+      String key = path.startsWith("/" + bucket + "/")
+        ? path.substring(bucket.length() + 2)
+        : path.substring(1);
 
       s3Template.deleteObject(bucket, key);
+      log.info("S3 이미지 삭제 완료. Key: {}", key);
     } catch (Exception e) {
       log.error("S3 이미지 삭제 실패: {}, 이미지 URL: {}", e.getMessage(), imageUrl);
       throw new CustomException(GlobalExceptionCode.FILE_DELETE_FAILED);
