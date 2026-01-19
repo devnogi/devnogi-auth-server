@@ -1,0 +1,27 @@
+services:
+  auth-server:
+    image: ghcr.io/${IMAGE_NAME}/auth-server:latest
+    container_name: auth-server
+    ports:
+      - "${SERVER_PORT}:${SERVER_PORT}"
+    env_file:
+      - .env.auth
+    environment:
+      - JAVA_OPTS=-Xms256m -Xmx512m
+      - SPRING_CLOUD_AWS_S3_ENDPOINT=${MINIO_ENDPOINT}
+    deploy:
+      resources:
+        limits:
+          memory: 750M
+    restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - devnogi-network
+
+networks:
+  devnogi-network:
+    external: true
