@@ -38,7 +38,6 @@ public class AuthService {
   @Transactional
   public SignUpResponse signUpUser(SignUpRequest request) {
 
-    // 기본 USER Role이 존재하는지 확인
     Role userRole = roleRepository.findByName(Name.USER)
       .orElseThrow(() -> {
         log.error("USER Role이 DB에 존재하지 않습니다.");
@@ -52,7 +51,6 @@ public class AuthService {
   @Transactional
   public SignUpResponse signUpAdmin(SignUpRequest request) {
 
-    // Admin Role이 존재하는지 확인
     Role adminRole = roleRepository.findByName(Name.ADMIN)
       .orElseThrow(() -> {
         log.error("ADMIN Role이 DB에 존재하지 않습니다.");
@@ -85,24 +83,18 @@ public class AuthService {
   }
 
   private SignUpResponse signUp(SignUpRequest request, Role role) {
-    // 이메일 형식 유효성 검증
     isValidEmailFormat(request.email());
-    // 이메일 중복 검증
     if (userRepository.existsByEmail(request.email())) {
       throw new CustomException(GlobalExceptionCode.EMAIL_ALREADY_EXISTS);
     }
 
-    // 닉네임 형식 유효성 검증
     isValidNicknameFormat(request.nickname());
-    // 닉네임 중복 검증
     if (userRepository.existsByNickname(request.nickname())) {
       throw new CustomException(GlobalExceptionCode.NICKNAME_ALREADY_EXISTS);
     }
 
-    // 비밀번호 유효성 검증
     isValidPasswordFormat(request.password());
 
-    // 프로필 이미지 등록
     String profileImageUrl = null;
     if (request.file() != null) {
       String dirName = "profile";

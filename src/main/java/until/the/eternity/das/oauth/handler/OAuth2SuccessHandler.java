@@ -52,7 +52,6 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
     Optional<OauthUser> oauthUserOpt = oauthUserRepository.findByProviderAndProviderUserIdWithUserAndRoles(
       oauthUserDTO.getProvider(), oauthUserDTO.getProviderUserId());
 
-    // 1. 기존 회원 로그인 성공 시
     if (oauthUserOpt.isPresent()) {
       User user = oauthUserOpt.get()
         .getUser();
@@ -60,7 +59,6 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
       return;
     }
 
-    // 2. 이메일 중복 체크 (에러 메시지 전달 예시)
     if (oauthUserDTO.getEmail() != null) {
       Optional<User> userOpt = userRepository.findByEmail(oauthUserDTO.getEmail());
       if (userOpt.isPresent()) {
@@ -77,7 +75,6 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
       }
     }
 
-    // 3. 신규 사용자 (회원가입 필요 시 데이터 포함하여 리다이렉트)
     log.info("신규 소셜 사용자입니다. 가입 데이터와 함께 리다이렉트합니다.");
     Map<String, Object> signupData = Map.of(
       "provider", oauthUserDTO.getProvider(),
@@ -97,14 +94,12 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
     String jsonResponse = objectMapper.writeValueAsString(apiResponse);
     String encodedData = URLEncoder.encode(jsonResponse, "UTF-8");
 
-    // Next.js의 콜백 페이지로 데이터 배달
     String targetUrl = frontendUrl + "/social-callback?data=" + encodedData;
     response.sendRedirect(targetUrl);
   }
 
   private void redirectWithSuccess(HttpServletResponse response, User user, String code,
                                    String message) throws IOException {
-    // 토큰 발급 로직 (기존 코드 유지)
     String accessToken = jwtUtil.generateAccessToken(user);
     String refreshToken = jwtUtil.generateRefreshToken(user);
     tokenService.saveNewRefreshToken(user.getId(), refreshToken);
@@ -114,7 +109,6 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
     user.updateLastLoginAt();
     userRepository.save(user);
 
-    // 로그인 성공 정보 전달
     redirectWithData(response, code, message, Map.of(
       "userId", user.getId(),
       "nickname", user.getNickname(),

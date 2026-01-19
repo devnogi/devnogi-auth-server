@@ -32,23 +32,18 @@ public class UserAuthenticationFilter extends OncePerRequestFilter {
   protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
     throws ServletException, IOException {
 
-    // 1. 쿠키에서 Access Token(JWT) 추출
     String token = extractTokenFromCookie(request);
 
     if (token != null) {
       try {
-        // 2. JwtUtil을 사용해 토큰 유효성 검증
-        //    (validateToken 내에서 만료, 형식 오류 등을 검증하고 예외를 던짐)
         jwtUtil.validateToken(token);
 
-        // 3. 토큰이 유효하면, JwtUtil을 사용해 사용자 ID 추출
         Long userId = jwtUtil.getUserIdFromToken(token);
         String role = jwtUtil.getRoleFromToken(token);
 
         GrantedAuthority authority = new SimpleGrantedAuthority("ROLE_" + role);
         List<GrantedAuthority> authorities = Collections.singletonList(authority);
 
-        // 4. 추출한 userId로 Spring Security 인증 객체 생성
         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
           userId,
           null,
@@ -63,7 +58,6 @@ public class UserAuthenticationFilter extends OncePerRequestFilter {
       }
     }
 
-    // 다음 필터로 요청을 전달합니다.
     filterChain.doFilter(request, response);
   }
 

@@ -93,12 +93,10 @@ public class AuthController {
   public ResponseEntity<CommonResponse<Boolean>> checkEmail(
     @RequestParam(name = "email") @NotBlank String email) {
 
-    // 이메일 형식 유효성 검증
     authService.isValidEmailFormat(email);
 
     boolean exists = authService.existsByEmail(email);
-    // exists == true면 이미 사용중인 이메일
-    return ResponseEntity.ok(CommonResponse.success(!exists)); // true = 사용 가능, false = 중복됨
+    return ResponseEntity.ok(CommonResponse.success(!exists));
   }
 
   /**
@@ -116,12 +114,10 @@ public class AuthController {
   public ResponseEntity<CommonResponse<Boolean>> checkNickname(
     @RequestParam(name = "nickname") @NotBlank String nickname) {
 
-    // 닉네임 유효성 검증
     authService.isValidNicknameFormat(nickname);
 
     boolean exists = authService.existsByNickname(nickname);
-    // exists == true면 이미 사용중인 닉네임
-    return ResponseEntity.ok(CommonResponse.success(!exists)); // true = 사용 가능, false = 중복됨
+    return ResponseEntity.ok(CommonResponse.success(!exists));
   }
 
   /**
