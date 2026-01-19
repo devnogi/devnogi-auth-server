@@ -1,16 +1,18 @@
 package until.the.eternity.das.oauth.handler;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
+import until.the.eternity.das.common.exception.CustomException;
+import until.the.eternity.das.common.exception.GlobalExceptionCode;
 import until.the.eternity.das.common.response.CommonResponse;
 import until.the.eternity.das.common.util.CookieUtil;
 import until.the.eternity.das.common.util.JwtUtil;
@@ -22,6 +24,7 @@ import until.the.eternity.das.user.entity.User;
 import until.the.eternity.das.user.entity.UserRepository;
 
 import java.io.IOException;
+import java.net.URLEncoder;
 import java.util.Map;
 import java.util.Optional;
 
@@ -37,48 +40,85 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
   private final ObjectMapper objectMapper;
   private final TokenService tokenService;
 
+  @Value("${FRONTEND_URL}")
+  private String frontendUrl;
+
   @Override
   public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
-                                      Authentication authentication) throws IOException, ServletException {
+                                      Authentication authentication) throws IOException {
 
     OauthUserDTO oauthUserDTO = getOauthUserDTO(authentication);
 
     Optional<OauthUser> oauthUserOpt = oauthUserRepository.findByProviderAndProviderUserIdWithUserAndRoles(
       oauthUserDTO.getProvider(), oauthUserDTO.getProviderUserId());
 
+    // 1. 기존 회원 로그인 성공 시
     if (oauthUserOpt.isPresent()) {
       User user = oauthUserOpt.get()
         .getUser();
-      issueTokensAndSendSuccessResponse(response, user);
+      redirectWithSuccess(response, user, "LOGIN_SUCCESS", "로그인 성공");
       return;
     }
 
+    // 2. 이메일 중복 체크 (에러 메시지 전달 예시)
     if (oauthUserDTO.getEmail() != null) {
       Optional<User> userOpt = userRepository.findByEmail(oauthUserDTO.getEmail());
       if (userOpt.isPresent()) {
-        User existingUser = userOpt.get();
-        String existingProvider = oauthUserRepository.findByUser(existingUser)
-          .map(OauthUser::getProvider)
-          .orElse("LOCAL");
+        String provider = oauthUserRepository.findByUser(userOpt.get())
+          .orElseThrow(() -> new CustomException(
+            GlobalExceptionCode.SERVER_ERROR))
+          .getProvider();
 
-        log.warn("이미 {} 계정으로 가입된 이메일({})로 소셜 로그인을 시도했습니다.", existingProvider, oauthUserDTO.getEmail());
-        writeJsonResponse(response, CommonResponse.error(
-          "DUPLICATE_PROVIDER",
-          "이미 " + existingProvider + " 계정으로 가입된 이메일입니다."
-        ));
+        String errorMsg = "이미 다른 계정으로 가입된 이메일입니다. \n 가입된 이메일 : " + provider;
+
+        String redirectUrl = frontendUrl + "/social-callback?error=" + URLEncoder.encode(errorMsg, "UTF-8");
+        response.sendRedirect(redirectUrl);
         return;
       }
     }
 
-    log.info("신규 소셜 사용자입니다. 추가 정보 입력이 필요합니다.");
+    // 3. 신규 사용자 (회원가입 필요 시 데이터 포함하여 리다이렉트)
+    log.info("신규 소셜 사용자입니다. 가입 데이터와 함께 리다이렉트합니다.");
+    Map<String, Object> signupData = Map.of(
+      "provider", oauthUserDTO.getProvider(),
+      "providerUserId", oauthUserDTO.getProviderUserId(),
+      "email", oauthUserDTO.getEmail() != null ? oauthUserDTO.getEmail() : ""
+    );
 
-    writeJsonResponse(response, CommonResponse.success(
-      "SIGNUP_REQUIRED",
-      "소셜 로그인 최초 시도, 추가정보 입력 필요",
-      Map.of(
-        "provider", oauthUserDTO.getProvider(),
-        "providerUserId", oauthUserDTO.getProviderUserId()
-      )
+    redirectWithData(response, "SIGNUP_REQUIRED", "추가정보 입력 필요", signupData);
+  }
+
+  /**
+   * 데이터를 JSON으로 만들어 URL 인코딩 후 리다이렉트 시키는 헬퍼 메소드
+   */
+  private void redirectWithData(HttpServletResponse response, String code, String message,
+                                Object data) throws IOException {
+    CommonResponse<?> apiResponse = CommonResponse.success(code, message, data);
+    String jsonResponse = objectMapper.writeValueAsString(apiResponse);
+    String encodedData = URLEncoder.encode(jsonResponse, "UTF-8");
+
+    // Next.js의 콜백 페이지로 데이터 배달
+    String targetUrl = frontendUrl + "/social-callback?data=" + encodedData;
+    response.sendRedirect(targetUrl);
+  }
+
+  private void redirectWithSuccess(HttpServletResponse response, User user, String code,
+                                   String message) throws IOException {
+    // 토큰 발급 로직 (기존 코드 유지)
+    String accessToken = jwtUtil.generateAccessToken(user);
+    String refreshToken = jwtUtil.generateRefreshToken(user);
+    tokenService.saveNewRefreshToken(user.getId(), refreshToken);
+    cookieUtil.createAccessTokenCookie(response, accessToken);
+    cookieUtil.createRefreshTokenCookie(response, refreshToken);
+
+    user.updateLastLoginAt();
+    userRepository.save(user);
+
+    // 로그인 성공 정보 전달
+    redirectWithData(response, code, message, Map.of(
+      "userId", user.getId(),
+      "nickname", user.getNickname(),
+      "email", user.getEmail()
     ));
   }
 
@@ -95,36 +135,5 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
     } else {
       return (OauthUserDTO) principal;
     }
-  }
-
-  private void issueTokensAndSendSuccessResponse(HttpServletResponse response, User user) throws IOException {
-    log.info("기존 회원 로그인 성공. JWT 토큰을 발급합니다. User ID: {}", user.getId());
-    String accessToken = jwtUtil.generateAccessToken(user);
-    String refreshToken = jwtUtil.generateRefreshToken(user);
-
-    tokenService.saveNewRefreshToken(user.getId(), refreshToken);
-
-    cookieUtil.createAccessTokenCookie(response, accessToken);
-    cookieUtil.createRefreshTokenCookie(response, refreshToken);
-
-    user.updateLastLoginAt();
-    userRepository.save(user);
-
-    writeJsonResponse(response, CommonResponse.success(
-      "LOGIN_SUCCESS",
-      "로그인 성공",
-      Map.of(
-        "userId", user.getId(),
-        "nickname", user.getNickname(),
-        "email", user.getEmail()
-      )
-    ));
-  }
-
-  private void writeJsonResponse(HttpServletResponse response, CommonResponse<?> apiResponse) throws IOException {
-    response.setContentType("application/json;charset=UTF-8");
-    response.setStatus(HttpServletResponse.SC_OK);
-    response.getWriter()
-      .write(objectMapper.writeValueAsString(apiResponse));
   }
 }

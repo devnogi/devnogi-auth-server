@@ -139,9 +139,16 @@ public class AuthController {
     responseCode = "201",
     content = @Content(schema = @Schema(implementation = SignUpResponse.class)))
   public ResponseEntity<CommonResponse<SignUpResponse>> completeSocialSignup(
-    @ModelAttribute SocialSignUpRequest request
+    @ModelAttribute SocialSignUpRequest request,
+    HttpServletResponse response
   ) {
     SignUpResponse result = socialAuthService.completeSocialSignup(request);
+
+    LoginResultResponse loginResultResponse = socialAuthService.jwtForSocialSignUp(result.id());
+
+    cookieUtil.createAccessTokenCookie(response, loginResultResponse.accessToken());
+    cookieUtil.createRefreshTokenCookie(response, loginResultResponse.refreshToken());
+
     return ResponseEntity.status(CREATED)
       .body(CommonResponse.success(result));
   }
