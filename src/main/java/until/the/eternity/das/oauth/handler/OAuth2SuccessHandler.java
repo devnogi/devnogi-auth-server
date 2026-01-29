@@ -68,18 +68,13 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
             GlobalExceptionCode.SERVER_ERROR))
           .getProvider();
 
-        log.warn("이미 {} 계정으로 가입된 이메일({})로 소셜 로그인을 시도했습니다.", existingProvider, oauthUserDTO.getEmail());
-        redirectToFrontendWithError(response, "이미 " + existingProvider + " 계정으로 가입된 이메일입니다.");
+        log.warn("이미 {} 계정으로 가입된 이메일({})로 소셜 로그인을 시도했습니다.", provider, oauthUserDTO.getEmail());
+        redirectToFrontendWithError(response, "이미 " + provider + " 계정으로 가입된 이메일입니다.");
         return;
       }
     }
 
     log.info("신규 소셜 사용자입니다. 가입 데이터와 함께 리다이렉트합니다.");
-    Map<String, Object> signupData = Map.of(
-      "provider", oauthUserDTO.getProvider(),
-      "providerUserId", oauthUserDTO.getProviderUserId(),
-      "email", oauthUserDTO.getEmail() != null ? oauthUserDTO.getEmail() : ""
-    );
 
     redirectToFrontend(response, CommonResponse.success(
       "SIGNUP_REQUIRED",
@@ -105,5 +100,53 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
     } else {
       return (OauthUserDTO) principal;
     }
+  }
+
+  /**
+   * 로그인 성공 시 JWT 토큰 발급 후 프론트엔드로 리다이렉트
+   */
+  private void redirectWithSuccess(HttpServletResponse response, User user, String code, String message) throws IOException {
+    log.info("기존 회원 로그인 성공. JWT 토큰을 발급합니다. User ID: {}", user.getId());
+    String accessToken = jwtUtil.generateAccessToken(user);
+    String refreshToken = jwtUtil.generateRefreshToken(user);
+
+    tokenService.saveNewRefreshToken(user.getId(), refreshToken);
+
+    cookieUtil.createAccessTokenCookie(response, accessToken);
+    cookieUtil.createRefreshTokenCookie(response, refreshToken);
+
+    user.updateLastLoginAt();
+    userRepository.save(user);
+
+    redirectToFrontend(response, CommonResponse.success(
+      code,
+      message,
+      Map.of(
+        "userId", user.getId(),
+        "nickname", user.getNickname(),
+        "email", user.getEmail()
+      )
+    ));
+  }
+
+  /**
+   * 프론트엔드 콜백 URL로 리다이렉트
+   */
+  private void redirectToFrontend(HttpServletResponse response, CommonResponse<?> apiResponse) throws IOException {
+    String jsonData = objectMapper.writeValueAsString(apiResponse);
+    String encodedData = URLEncoder.encode(jsonData, StandardCharsets.UTF_8);
+    String redirectUrl = frontendCallbackUrl + "?data=" + encodedData;
+    log.info("프론트엔드로 리다이렉트: {}", frontendCallbackUrl);
+    response.sendRedirect(redirectUrl);
+  }
+
+  /**
+   * 에러 발생 시 프론트엔드로 리다이렉트
+   */
+  private void redirectToFrontendWithError(HttpServletResponse response, String errorMessage) throws IOException {
+    String encodedError = URLEncoder.encode(errorMessage, StandardCharsets.UTF_8);
+    String redirectUrl = frontendCallbackUrl + "?error=" + encodedError;
+    log.warn("에러로 프론트엔드 리다이렉트: {}", errorMessage);
+    response.sendRedirect(redirectUrl);
   }
 }
