@@ -5,10 +5,13 @@ services:
     ports:
       - "${SERVER_PORT}:${SERVER_PORT}"
     env_file:
-      - .env.auth
+      - .env.prod
+    volumes:
+      - ./config/application.yml:/app/config/application.yml
     environment:
       - JAVA_OPTS=-Xms256m -Xmx512m
       - SPRING_CLOUD_AWS_S3_ENDPOINT=${MINIO_ENDPOINT}
+      - SPRING_CONFIG_LOCATION=file:/app/config/application.yml
     deploy:
       resources:
         limits:
@@ -20,8 +23,8 @@ services:
         max-size: "10m"
         max-file: "3"
     networks:
-      - devnogi-network
+      - infra_devnogi-network
 
 networks:
-  devnogi-network:
+  infra_devnogi-network:
     external: true
