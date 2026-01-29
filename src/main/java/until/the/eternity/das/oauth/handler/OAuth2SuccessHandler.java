@@ -6,6 +6,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
@@ -22,6 +23,8 @@ import until.the.eternity.das.user.entity.User;
 import until.the.eternity.das.user.entity.UserRepository;
 
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Optional;
 
@@ -36,6 +39,9 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
   private final CookieUtil cookieUtil;
   private final ObjectMapper objectMapper;
   private final TokenService tokenService;
+
+  @Value("${app.oauth.redirect-uri:http://localhost:3000/social-callback}")
+  private String frontendCallbackUrl;
 
   @Override
   public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
@@ -62,22 +68,20 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
           .orElse("LOCAL");
 
         log.warn("이미 {} 계정으로 가입된 이메일({})로 소셜 로그인을 시도했습니다.", existingProvider, oauthUserDTO.getEmail());
-        writeJsonResponse(response, CommonResponse.error(
-          "DUPLICATE_PROVIDER",
-          "이미 " + existingProvider + " 계정으로 가입된 이메일입니다."
-        ));
+        redirectToFrontendWithError(response, "이미 " + existingProvider + " 계정으로 가입된 이메일입니다.");
         return;
       }
     }
 
     log.info("신규 소셜 사용자입니다. 추가 정보 입력이 필요합니다.");
 
-    writeJsonResponse(response, CommonResponse.success(
+    redirectToFrontend(response, CommonResponse.success(
       "SIGNUP_REQUIRED",
       "소셜 로그인 최초 시도, 추가정보 입력 필요",
       Map.of(
         "provider", oauthUserDTO.getProvider(),
-        "providerUserId", oauthUserDTO.getProviderUserId()
+        "providerUserId", oauthUserDTO.getProviderUserId(),
+        "email", oauthUserDTO.getEmail() != null ? oauthUserDTO.getEmail() : ""
       )
     ));
   }
@@ -110,7 +114,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
     user.updateLastLoginAt();
     userRepository.save(user);
 
-    writeJsonResponse(response, CommonResponse.success(
+    redirectToFrontend(response, CommonResponse.success(
       "LOGIN_SUCCESS",
       "로그인 성공",
       Map.of(
@@ -126,5 +130,27 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
     response.setStatus(HttpServletResponse.SC_OK);
     response.getWriter()
       .write(objectMapper.writeValueAsString(apiResponse));
+  }
+
+  /**
+   * 프론트엔드 콜백 URL로 리다이렉트합니다.
+   * 응답 데이터를 쿼리 파라미터로 인코딩하여 전달합니다.
+   */
+  private void redirectToFrontend(HttpServletResponse response, CommonResponse<?> apiResponse) throws IOException {
+    String jsonData = objectMapper.writeValueAsString(apiResponse);
+    String encodedData = URLEncoder.encode(jsonData, StandardCharsets.UTF_8);
+    String redirectUrl = frontendCallbackUrl + "?data=" + encodedData;
+    log.info("프론트엔드로 리다이렉트: {}", frontendCallbackUrl);
+    response.sendRedirect(redirectUrl);
+  }
+
+  /**
+   * 에러 발생 시 프론트엔드로 리다이렉트합니다.
+   */
+  private void redirectToFrontendWithError(HttpServletResponse response, String errorMessage) throws IOException {
+    String encodedError = URLEncoder.encode(errorMessage, StandardCharsets.UTF_8);
+    String redirectUrl = frontendCallbackUrl + "?error=" + encodedError;
+    log.warn("에러로 프론트엔드 리다이렉트: {}", errorMessage);
+    response.sendRedirect(redirectUrl);
   }
 }
