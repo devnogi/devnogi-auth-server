@@ -82,11 +82,4 @@ public class UserController {
   ) {
     return ResponseEntity.ok(CommonResponse.success(userService.withdrawUser(id)));
   }
-
-  // Todo 비밀번호 변경 기능 만들기
-//  @PatchMapping("password")
-//  public ResponseEntity<CommonResponse<Boolean>> updatePassword() {
-//    return null;
-//  }
-
 }

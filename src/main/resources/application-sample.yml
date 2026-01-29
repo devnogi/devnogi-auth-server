@@ -18,12 +18,27 @@ management:
 spring:
   application:
     name: devnogi-auth-server
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${MAIL_USERNAME:devnogi.auth@gmail.com}
+    password: ${MAIL_PASSWORD:ipghhpopgxncgzgg}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
   web:
     resources:
       static-locations: classpath:/static/
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:${DB_PORT}/${DB_SCHEMA}
+    url: jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_SCHEMA}
     username: ${DB_USER}
     password: ${DB_PASSWORD}
   security:
@@ -78,7 +93,7 @@ spring:
     baseline-version: 1
     locations: classpath:db/migration
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       # 값을 JSON 형태로 보내기 위한 설정
@@ -101,19 +116,22 @@ spring:
       credentials:
         access-key: ${AWS_ACCESS_KEY}
         secret-key: ${AWS_SECRET_KEY}
+      s3:
+        endpoint: https://${OCI_NAMESPACE}.compat.objectstorage.${AWS_REGION}.oraclecloud.com
+        path-style-access-enabled: true
   servlet:
     multipart:
       max-file-size: 5MB
       max-request-size: 5MB
 
-
 jwt:
   secret-key: ${JWT_SECRET_KEY:e4f1a5c8d2b7e9f0a6c3d1b8e5f2c7a9d4e6f3b1a2c8d5e9f0b3a7c2d1e8f5a4}
-  access-token-validity: ${JWT_ACCESS_TOKEN_VALIDITY:60 * 60 * 1000} # milliseconds (1 hour)
-  refresh-token-validity: ${JWT_REFRESH_TOKEN_VALIDITY:60 * 60 * 24 * 1000} # milliseconds (1 day)
-  issuer: ${JWT_ISSUER:devnogi}
-  access-token-cookie-name: ${JWT_ACCESS_TOKEN_COOKIE_NAME:access_token}
-  refresh-token-cookie-name: ${JWT_REFRESH_TOKEN_COOKIE_NAME:refresh_token}
+  access-token-validity: ${JWT_ACCESS_TOKEN_VALIDITY:3600} # seconds (1 hour)
+  refresh-token-validity: ${JWT_REFRESH_TOKEN_VALIDITY:86400} # seconds (1 day)
+  issuer: devnogi
+  access-token-cookie-name: access_token
+  refresh-token-cookie-name: refresh_token
+
 
 springdoc:
   swagger-ui:

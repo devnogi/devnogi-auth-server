@@ -94,12 +94,10 @@ public class AuthController {
   public ResponseEntity<CommonResponse<Boolean>> checkEmail(
     @RequestParam(name = "email") @NotBlank String email) {
 
-    // 이메일 형식 유효성 검증
     authService.isValidEmailFormat(email);
 
     boolean exists = authService.existsByEmail(email);
-    // exists == true면 이미 사용중인 이메일
-    return ResponseEntity.ok(CommonResponse.success(!exists)); // true = 사용 가능, false = 중복됨
+    return ResponseEntity.ok(CommonResponse.success(!exists));
   }
 
   /**
@@ -117,12 +115,10 @@ public class AuthController {
   public ResponseEntity<CommonResponse<Boolean>> checkNickname(
     @RequestParam(name = "nickname") @NotBlank String nickname) {
 
-    // 닉네임 유효성 검증
     authService.isValidNicknameFormat(nickname);
 
     boolean exists = authService.existsByNickname(nickname);
-    // exists == true면 이미 사용중인 닉네임
-    return ResponseEntity.ok(CommonResponse.success(!exists)); // true = 사용 가능, false = 중복됨
+    return ResponseEntity.ok(CommonResponse.success(!exists));
   }
 
   /**
@@ -140,9 +136,16 @@ public class AuthController {
     responseCode = "201",
     content = @Content(schema = @Schema(implementation = SignUpResponse.class)))
   public ResponseEntity<CommonResponse<SignUpResponse>> completeSocialSignup(
-    @ModelAttribute SocialSignUpRequest request
+    @ModelAttribute SocialSignUpRequest request,
+    HttpServletResponse response
   ) {
     SignUpResponse result = socialAuthService.completeSocialSignup(request);
+
+    LoginResultResponse loginResultResponse = socialAuthService.jwtForSocialSignUp(result.id());
+
+    cookieUtil.createAccessTokenCookie(response, loginResultResponse.accessToken());
+    cookieUtil.createRefreshTokenCookie(response, loginResultResponse.refreshToken());
+
     return ResponseEntity.status(CREATED)
       .body(CommonResponse.success(result));
   }

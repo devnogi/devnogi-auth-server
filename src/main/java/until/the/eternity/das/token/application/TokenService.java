@@ -34,7 +34,6 @@ public class TokenService {
     User user = userRepository.findById(userId)
       .orElseThrow(() -> new CustomException(GlobalExceptionCode.USER_NOT_EXISTS));
 
-    // 기존 토큰을 무효화하지 않고, 새로운 리프레시 토큰을 그대로 저장합니다.
     RefreshToken newRefreshToken = RefreshToken.builder()
       .user(user)
       .token(token)

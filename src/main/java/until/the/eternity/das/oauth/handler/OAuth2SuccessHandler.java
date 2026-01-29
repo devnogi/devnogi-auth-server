@@ -1,7 +1,6 @@
 package until.the.eternity.das.oauth.handler;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +11,8 @@ import org.springframework.security.oauth2.client.authentication.OAuth2Authentic
 import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
+import until.the.eternity.das.common.exception.CustomException;
+import until.the.eternity.das.common.exception.GlobalExceptionCode;
 import until.the.eternity.das.common.response.CommonResponse;
 import until.the.eternity.das.common.util.CookieUtil;
 import until.the.eternity.das.common.util.JwtUtil;
@@ -45,7 +46,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 
   @Override
   public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
-                                      Authentication authentication) throws IOException, ServletException {
+                                      Authentication authentication) throws IOException {
 
     OauthUserDTO oauthUserDTO = getOauthUserDTO(authentication);
 
@@ -55,17 +56,17 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
     if (oauthUserOpt.isPresent()) {
       User user = oauthUserOpt.get()
         .getUser();
-      issueTokensAndSendSuccessResponse(response, user);
+      redirectWithSuccess(response, user, "LOGIN_SUCCESS", "로그인 성공");
       return;
     }
 
     if (oauthUserDTO.getEmail() != null) {
       Optional<User> userOpt = userRepository.findByEmail(oauthUserDTO.getEmail());
       if (userOpt.isPresent()) {
-        User existingUser = userOpt.get();
-        String existingProvider = oauthUserRepository.findByUser(existingUser)
-          .map(OauthUser::getProvider)
-          .orElse("LOCAL");
+        String provider = oauthUserRepository.findByUser(userOpt.get())
+          .orElseThrow(() -> new CustomException(
+            GlobalExceptionCode.SERVER_ERROR))
+          .getProvider();
 
         log.warn("이미 {} 계정으로 가입된 이메일({})로 소셜 로그인을 시도했습니다.", existingProvider, oauthUserDTO.getEmail());
         redirectToFrontendWithError(response, "이미 " + existingProvider + " 계정으로 가입된 이메일입니다.");
@@ -73,7 +74,12 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
       }
     }
 
-    log.info("신규 소셜 사용자입니다. 추가 정보 입력이 필요합니다.");
+    log.info("신규 소셜 사용자입니다. 가입 데이터와 함께 리다이렉트합니다.");
+    Map<String, Object> signupData = Map.of(
+      "provider", oauthUserDTO.getProvider(),
+      "providerUserId", oauthUserDTO.getProviderUserId(),
+      "email", oauthUserDTO.getEmail() != null ? oauthUserDTO.getEmail() : ""
+    );
 
     redirectToFrontend(response, CommonResponse.success(
       "SIGNUP_REQUIRED",
@@ -99,58 +105,5 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
     } else {
       return (OauthUserDTO) principal;
     }
-  }
-
-  private void issueTokensAndSendSuccessResponse(HttpServletResponse response, User user) throws IOException {
-    log.info("기존 회원 로그인 성공. JWT 토큰을 발급합니다. User ID: {}", user.getId());
-    String accessToken = jwtUtil.generateAccessToken(user);
-    String refreshToken = jwtUtil.generateRefreshToken(user);
-
-    tokenService.saveNewRefreshToken(user.getId(), refreshToken);
-
-    cookieUtil.createAccessTokenCookie(response, accessToken);
-    cookieUtil.createRefreshTokenCookie(response, refreshToken);
-
-    user.updateLastLoginAt();
-    userRepository.save(user);
-
-    redirectToFrontend(response, CommonResponse.success(
-      "LOGIN_SUCCESS",
-      "로그인 성공",
-      Map.of(
-        "userId", user.getId(),
-        "nickname", user.getNickname(),
-        "email", user.getEmail()
-      )
-    ));
-  }
-
-  private void writeJsonResponse(HttpServletResponse response, CommonResponse<?> apiResponse) throws IOException {
-    response.setContentType("application/json;charset=UTF-8");
-    response.setStatus(HttpServletResponse.SC_OK);
-    response.getWriter()
-      .write(objectMapper.writeValueAsString(apiResponse));
-  }
-
-  /**
-   * 프론트엔드 콜백 URL로 리다이렉트합니다.
-   * 응답 데이터를 쿼리 파라미터로 인코딩하여 전달합니다.
-   */
-  private void redirectToFrontend(HttpServletResponse response, CommonResponse<?> apiResponse) throws IOException {
-    String jsonData = objectMapper.writeValueAsString(apiResponse);
-    String encodedData = URLEncoder.encode(jsonData, StandardCharsets.UTF_8);
-    String redirectUrl = frontendCallbackUrl + "?data=" + encodedData;
-    log.info("프론트엔드로 리다이렉트: {}", frontendCallbackUrl);
-    response.sendRedirect(redirectUrl);
-  }
-
-  /**
-   * 에러 발생 시 프론트엔드로 리다이렉트합니다.
-   */
-  private void redirectToFrontendWithError(HttpServletResponse response, String errorMessage) throws IOException {
-    String encodedError = URLEncoder.encode(errorMessage, StandardCharsets.UTF_8);
-    String redirectUrl = frontendCallbackUrl + "?error=" + encodedError;
-    log.warn("에러로 프론트엔드 리다이렉트: {}", errorMessage);
-    response.sendRedirect(redirectUrl);
   }
 }
