@@ -75,13 +75,15 @@ jobs:
           script: |
             mkdir -p /opt/auth
             cd /opt/auth
+
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             
-            cat << 'EOF' > .env.auth
+            cat << 'EOF' > .env.prod
             ${{ secrets.AUTH_SERVER_ENV }}
             EOF
             
             export IMAGE_NAME=${{ github.repository }}
-            docker compose -f docker-compose-auth-prod.yml --env-file .env.auth pull
-            docker compose -f docker-compose-auth-prod.yml --env-file .env.auth up -d
-            
+            docker compose -f docker-compose-auth-prod.yml --env-file .env.prod pull
+            docker compose -f docker-compose-auth-prod.yml --env-file .env.prod up -d
+
             docker image prune -f
