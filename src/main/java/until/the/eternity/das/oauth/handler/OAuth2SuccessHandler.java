@@ -41,7 +41,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
   private final ObjectMapper objectMapper;
   private final TokenService tokenService;
 
-  @Value("${app.oauth.redirect-uri:http://localhost:3000/social-callback}")
+  @Value("${app.oauth.redirect-uri:https://api.memonogi.com/social-callback}")
   private String frontendCallbackUrl;
 
   @Override
