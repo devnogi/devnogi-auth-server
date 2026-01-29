@@ -35,6 +35,8 @@ out/
 
 ### VS Code ###
 .vscode/
+.DS_Store
+dev_rules/
 
 ### Spring Boot ###
 application.yml
