@@ -45,6 +45,11 @@ public class AuthService {
 
 
   @Transactional
+  public void logout(Long userId) {
+    tokenService.revokeAllUserTokens(userId);
+  }
+
+  @Transactional
   public SignUpResponse signUpUser(SignUpRequest request) {
 
     Role userRole = roleRepository.findByName(Name.USER)

@@ -9,6 +9,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -23,6 +25,7 @@ import until.the.eternity.das.auth.dto.request.SocialSignUpRequest;
 import until.the.eternity.das.auth.dto.response.LoginResponse;
 import until.the.eternity.das.auth.dto.response.LoginResultResponse;
 import until.the.eternity.das.auth.dto.response.SignUpResponse;
+import until.the.eternity.das.common.constant.JwtConstant;
 import until.the.eternity.das.common.response.CommonResponse;
 import until.the.eternity.das.common.util.CookieUtil;
 import until.the.eternity.das.oauth.service.SocialAuthService;
@@ -37,6 +40,7 @@ public class AuthController {
   private final AuthService authService;
   private final SocialAuthService socialAuthService;
   private final CookieUtil cookieUtil;
+  private final JwtConstant jwtConstant;
 
   /**
    * 회원 가입 API
@@ -148,6 +152,29 @@ public class AuthController {
 
     return ResponseEntity.status(CREATED)
       .body(CommonResponse.success(result));
+  }
+
+  /**
+   * 로그아웃 API
+   *
+   * @param response 쿠키 삭제를 위한 HttpResponse
+   * @return 성공 응답
+   */
+  @PostMapping("/logout")
+  @Operation(summary = "로그아웃 API", description = """
+    - Description : 이 API는 로그아웃을 요청합니다. Refresh Token을 revoke하고 쿠키를 삭제합니다.
+    - Assignee : 안나
+    """)
+  public ResponseEntity<CommonResponse<Void>> logout(HttpServletResponse response) {
+    Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+    if (auth != null && auth.getPrincipal() instanceof Long userId) {
+      authService.logout(userId);
+    }
+
+    cookieUtil.deleteCookie(jwtConstant.getAccessTokenCookieName(), response);
+    cookieUtil.deleteCookie(jwtConstant.getRefreshTokenCookieName(), response);
+
+    return ResponseEntity.ok(CommonResponse.success(null));
   }
 
   /**

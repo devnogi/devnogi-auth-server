@@ -13,6 +13,7 @@ import until.the.eternity.das.user.entity.User;
 import until.the.eternity.das.user.entity.UserRepository;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Slf4j
 @Service
@@ -43,5 +44,14 @@ public class TokenService {
       .build();
 
     refreshTokenRepository.save(newRefreshToken);
+  }
+
+  @Transactional
+  public void revokeAllUserTokens(Long userId) {
+    User user = userRepository.findById(userId)
+      .orElseThrow(() -> new CustomException(GlobalExceptionCode.USER_NOT_EXISTS));
+
+    List<RefreshToken> activeTokens = refreshTokenRepository.findAllByUserAndRevokedFalse(user);
+    activeTokens.forEach(RefreshToken::revoke);
   }
 }
