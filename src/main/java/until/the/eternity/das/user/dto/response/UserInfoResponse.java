@@ -5,6 +5,7 @@ import until.the.eternity.das.user.entity.User;
 import java.time.LocalDateTime;
 
 public record UserInfoResponse(
+  String email,
   String nickname,
   String profileImageUrl,
   LocalDateTime createdAt,
@@ -12,6 +13,7 @@ public record UserInfoResponse(
 ) {
   public static UserInfoResponse of(User user) {
     return new UserInfoResponse(
+      user.getEmail(),
       user.getNickname(),
       user.getProfileImageUrl(),
       user.getCreatedAt(),

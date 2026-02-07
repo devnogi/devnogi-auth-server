@@ -11,5 +11,3 @@ public record UserInfoUpdateEvent(
     return new UserInfoUpdateEvent(user.getId(), user.getNickname(), user.getProfileImageUrl());
   }
 }
-
-// Todo Level, grade(Role)은 추후에 의논 후 추가

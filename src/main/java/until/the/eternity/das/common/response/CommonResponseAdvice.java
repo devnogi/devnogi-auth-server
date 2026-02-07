@@ -21,7 +21,6 @@ public class CommonResponseAdvice implements ResponseBodyAdvice<Object> {
 
   @Override
   public boolean supports(MethodParameter returnType, Class<? extends HttpMessageConverter<?>> converterType) {
-    // void나 ApiResponse 타입이면 감싸지 않음
     return !returnType.getParameterType()
       .equals(Void.TYPE)
       && !CommonResponse.class.isAssignableFrom(returnType.getParameterType());
@@ -40,20 +39,17 @@ public class CommonResponseAdvice implements ResponseBodyAdvice<Object> {
         HttpServletRequest httpRequest = servletRequest.getServletRequest();
         String path = httpRequest.getRequestURI();
 
-        // Swagger 관련 요청은 감싸지 않음
         if (isSwaggerPath(path)) {
           return body;
         }
       }
 
-      // 이미 ApiResponse 타입이면 다시 감싸지 않음
       if (body instanceof CommonResponse) {
         return body;
       }
 
       return CommonResponse.success(body);
     } catch (Exception e) {
-      // Swagger에서 500 방지를 위한 fallback 처리
       return body;
     }
   }

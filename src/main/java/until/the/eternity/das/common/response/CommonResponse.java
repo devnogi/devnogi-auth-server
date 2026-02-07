@@ -26,7 +26,7 @@ public class CommonResponse<T> {
   public static <T> CommonResponse<T> success(T data) {
     return CommonResponse.<T>builder()
       .success(true)
-      .code("COMMON_SUCCESS") // TODO: 아예 enum으로 관리하는 건 고민해보자
+      .code("COMMON_SUCCESS")
       .message("요청이 성공적으로 처리되었습니다.")
       .data(data)
       .timestamp(Instant.now()

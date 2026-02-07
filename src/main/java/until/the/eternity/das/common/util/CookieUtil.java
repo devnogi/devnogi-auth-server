@@ -24,6 +24,7 @@ public class CookieUtil {
       .secure(true)
       .sameSite("None")
       .path("/")
+      .domain(".memonogi.com")
       .maxAge(jwtConstant.getAccessTokenValidity())
       .build();
 
@@ -42,6 +43,7 @@ public class CookieUtil {
       .secure(true)
       .sameSite("None")
       .path("/")
+      .domain(".memonogi.com")
       .maxAge(jwtConstant.getRefreshTokenValidity())
       .build();
 
@@ -59,6 +61,7 @@ public class CookieUtil {
       .secure(true)
       .sameSite("None")
       .path("/")
+      .domain(".memonogi.com")
       .maxAge(0)
       .build();
 
