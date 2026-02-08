@@ -1,7 +1,8 @@
 package until.the.eternity.das.role.entity;
 
-import java.util.Optional;
 import until.the.eternity.das.role.entity.enums.Name;
+
+import java.util.Optional;
 
 public interface RoleRepository {
   

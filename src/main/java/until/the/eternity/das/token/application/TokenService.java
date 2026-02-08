@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import until.the.eternity.das.auth.dto.response.LoginResultResponse;
 import until.the.eternity.das.common.exception.CustomException;
 import until.the.eternity.das.common.exception.GlobalExceptionCode;
 import until.the.eternity.das.common.util.JwtUtil;
@@ -11,8 +12,6 @@ import until.the.eternity.das.token.entity.RefreshToken;
 import until.the.eternity.das.token.entity.RefreshTokenRepository;
 import until.the.eternity.das.user.entity.User;
 import until.the.eternity.das.user.entity.UserRepository;
-
-import until.the.eternity.das.auth.dto.response.LoginResultResponse;
 import until.the.eternity.das.user.entity.enums.Status;
 
 import java.time.LocalDateTime;
