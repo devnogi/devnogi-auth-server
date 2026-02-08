@@ -26,9 +26,13 @@ import until.the.eternity.das.auth.dto.response.LoginResponse;
 import until.the.eternity.das.auth.dto.response.LoginResultResponse;
 import until.the.eternity.das.auth.dto.response.SignUpResponse;
 import until.the.eternity.das.common.constant.JwtConstant;
+import until.the.eternity.das.common.exception.CustomException;
+import until.the.eternity.das.common.exception.GlobalExceptionCode;
 import until.the.eternity.das.common.response.CommonResponse;
 import until.the.eternity.das.common.util.CookieUtil;
+import until.the.eternity.das.common.util.JwtUtil;
 import until.the.eternity.das.oauth.service.SocialAuthService;
+import until.the.eternity.das.token.application.TokenService;
 
 import static org.springframework.http.HttpStatus.CREATED;
 
@@ -38,8 +42,10 @@ import static org.springframework.http.HttpStatus.CREATED;
 public class AuthController {
 
   private final AuthService authService;
+  private final TokenService tokenService;
   private final SocialAuthService socialAuthService;
   private final CookieUtil cookieUtil;
+  private final JwtUtil jwtUtil;
   private final JwtConstant jwtConstant;
 
   /**
@@ -201,6 +207,40 @@ public class AuthController {
     String userAgent = httpServletRequest.getHeader("User-Agent");
     
     LoginResultResponse loginResultResponse = authService.login(request, clientIp, userAgent);
+
+    cookieUtil.createAccessTokenCookie(response, loginResultResponse.accessToken());
+    cookieUtil.createRefreshTokenCookie(response, loginResultResponse.refreshToken());
+
+    LoginResponse loginResponse = LoginResponse.from(loginResultResponse.user());
+
+    return ResponseEntity.ok(CommonResponse.success(loginResponse));
+  }
+
+  /**
+   * 토큰 갱신 API
+   *
+   * @param request 쿠키에서 refresh token을 추출하기 위한 HttpRequest
+   * @param response 새 토큰을 쿠키에 담기 위한 HttpResponse
+   * @return 갱신된 사용자 정보
+   */
+  @PostMapping("/refresh")
+  @Operation(summary = "토큰 갱신 API", description = """
+    - Description : 리프레시 토큰을 사용하여 새로운 액세스 토큰과 리프레시 토큰을 발급합니다.
+    - 기존 리프레시 토큰은 revoke되고 새로운 토큰이 발급됩니다 (토큰 로테이션).
+    """)
+  @ApiResponse(
+    responseCode = "200",
+    content = @Content(schema = @Schema(implementation = LoginResponse.class)))
+  public ResponseEntity<CommonResponse<LoginResponse>> refresh(
+    HttpServletRequest request,
+    HttpServletResponse response
+  ) {
+    String refreshToken = jwtUtil.extractRefreshToken(request);
+    if (refreshToken == null) {
+      throw new CustomException(GlobalExceptionCode.INVALID_REFRESH_TOKEN);
+    }
+
+    LoginResultResponse loginResultResponse = tokenService.refresh(refreshToken);
 
     cookieUtil.createAccessTokenCookie(response, loginResultResponse.accessToken());
     cookieUtil.createRefreshTokenCookie(response, loginResultResponse.refreshToken());
