@@ -18,6 +18,9 @@ import until.the.eternity.das.common.application.S3Service;
 import until.the.eternity.das.common.exception.CustomException;
 import until.the.eternity.das.common.exception.GlobalExceptionCode;
 import until.the.eternity.das.common.util.JwtUtil;
+import until.the.eternity.das.login.entity.AccountLock;
+import until.the.eternity.das.login.entity.AccountLockRepository;
+import until.the.eternity.das.login.entity.LoginHistoryRepository;
 import until.the.eternity.das.role.entity.Role;
 import until.the.eternity.das.role.entity.RoleRepository;
 import until.the.eternity.das.role.entity.enums.Name;
@@ -25,6 +28,7 @@ import until.the.eternity.das.token.application.TokenService;
 import until.the.eternity.das.user.entity.User;
 import until.the.eternity.das.user.entity.UserRepository;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -54,7 +58,11 @@ class AuthServiceTest {
   @Mock
   private TokenService tokenService;
   @Mock
-  private S3Service s3Service; // S3Service Mock 추가
+  private S3Service s3Service;
+  @Mock
+  private AccountLockRepository accountLockRepository;
+  @Mock
+  private LoginHistoryRepository loginHistoryRepository;
 
   private SignUpRequest signUpRequest;
   private LoginRequest loginRequest;
@@ -156,7 +164,15 @@ class AuthServiceTest {
   @DisplayName("로그인 성공 테스트")
   void login_Success() {
     // given
+    AccountLock accountLock = AccountLock.builder()
+      .user(user)
+      .userId(user.getId())
+      .failedAttempts(0)
+      .updatedAt(LocalDateTime.now())
+      .build();
+
     when(userRepository.findByEmail(loginRequest.email())).thenReturn(Optional.of(user));
+    when(accountLockRepository.findById(user.getId())).thenReturn(Optional.of(accountLock));
     when(bCryptPasswordEncoder.matches(loginRequest.password(), user.getPasswordHash())).thenReturn(true);
     when(jwtUtil.generateAccessToken(user)).thenReturn("access-token");
     when(jwtUtil.generateRefreshToken(user)).thenReturn("refresh-token");
@@ -164,7 +180,7 @@ class AuthServiceTest {
       .saveNewRefreshToken(user.getId(), "refresh-token");
 
     // when
-    LoginResultResponse response = authService.login(loginRequest);
+    LoginResultResponse response = authService.login(loginRequest, "127.0.0.1", "TestAgent");
 
     // then
     assertNotNull(response);
@@ -180,7 +196,8 @@ class AuthServiceTest {
     when(userRepository.findByEmail(loginRequest.email())).thenReturn(Optional.empty());
 
     // when & then
-    CustomException exception = assertThrows(CustomException.class, () -> authService.login(loginRequest));
+    CustomException exception = assertThrows(CustomException.class,
+      () -> authService.login(loginRequest, "127.0.0.1", "TestAgent"));
     assertEquals(GlobalExceptionCode.USER_NOT_EXISTS, exception.getCode());
   }
 
@@ -188,11 +205,20 @@ class AuthServiceTest {
   @DisplayName("로그인 실패 - 잘못된 비밀번호")
   void login_Fail_InvalidPassword() {
     // given
+    AccountLock accountLock = AccountLock.builder()
+      .user(user)
+      .userId(user.getId())
+      .failedAttempts(0)
+      .updatedAt(LocalDateTime.now())
+      .build();
+
     when(userRepository.findByEmail(loginRequest.email())).thenReturn(Optional.of(user));
+    when(accountLockRepository.findById(user.getId())).thenReturn(Optional.of(accountLock));
     when(bCryptPasswordEncoder.matches(loginRequest.password(), user.getPasswordHash())).thenReturn(false);
 
     // when & then
-    CustomException exception = assertThrows(CustomException.class, () -> authService.login(loginRequest));
+    CustomException exception = assertThrows(CustomException.class,
+      () -> authService.login(loginRequest, "127.0.0.1", "TestAgent"));
     assertEquals(GlobalExceptionCode.INVALID_PASSWORD, exception.getCode());
   }
 }
