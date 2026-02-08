@@ -18,15 +18,23 @@ import until.the.eternity.das.auth.dto.request.SignUpRequest;
 import until.the.eternity.das.auth.dto.response.LoginResultResponse;
 import until.the.eternity.das.auth.dto.response.SignUpResponse;
 import until.the.eternity.das.common.config.TestSecurityConfig;
+import until.the.eternity.das.common.constant.JwtConstant;
+import until.the.eternity.das.common.exception.CustomException;
+import until.the.eternity.das.common.exception.GlobalExceptionCode;
 import until.the.eternity.das.common.util.CookieUtil;
+import until.the.eternity.das.common.util.JwtUtil;
+import until.the.eternity.das.oauth.service.SocialAuthService;
 import until.the.eternity.das.role.entity.Role;
 import until.the.eternity.das.role.entity.enums.Name;
+import until.the.eternity.das.token.application.TokenService;
 import until.the.eternity.das.user.entity.User;
+import until.the.eternity.das.user.entity.UserRepository;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -45,7 +53,22 @@ class AuthControllerTest {
   private AuthService authService;
 
   @MockitoBean
+  private TokenService tokenService;
+
+  @MockitoBean
+  private SocialAuthService socialAuthService;
+
+  @MockitoBean
   private CookieUtil cookieUtil;
+
+  @MockitoBean
+  private JwtUtil jwtUtil;
+
+  @MockitoBean
+  private JwtConstant jwtConstant;
+
+  @MockitoBean
+  private UserRepository userRepository;
 
   private MockMultipartFile mockFile;
   private SignUpRequest signUpRequest;
@@ -83,7 +106,6 @@ class AuthControllerTest {
   @DisplayName("회원가입 API 성공 테스트")
   void signUpApi_Success() throws Exception {
     // given
-    SignUpRequest request = signUpRequest;
     SignUpResponse response = SignUpResponse.builder()
       .id(1L)
       .build();
@@ -91,22 +113,28 @@ class AuthControllerTest {
     when(authService.signUpUser(any(SignUpRequest.class))).thenReturn(response);
 
     // when & then
-    mockMvc.perform(post("/api/v1/auth/signup")
-        .contentType(MediaType.APPLICATION_JSON)
-        .content(objectMapper.writeValueAsString(request)))
-      .andExpect(status().isOk())
-      .andExpect(jsonPath("$.data.email").value(request.email()));
+    mockMvc.perform(multipart("/api/auth/signup")
+        .file(mockFile)
+        .param("email", "test@test.com")
+        .param("password", "password123!")
+        .param("nickname", "testuser"))
+      .andExpect(status().isCreated())
+      .andExpect(jsonPath("$.data.id").value(1L));
   }
 
   @Test
   @DisplayName("회원가입 API 실패 - 잘못된 이메일 형식")
   void signUpApi_Fail_InvalidEmail() throws Exception {
     // given
-    SignUpRequest request = signUpRequest;
+    when(authService.signUpUser(any(SignUpRequest.class)))
+      .thenThrow(new CustomException(GlobalExceptionCode.INVALID_EMAIL_FORMAT));
+
     // when & then
-    mockMvc.perform(post("/api/v1/auth/signup")
-        .contentType(MediaType.APPLICATION_JSON)
-        .content(objectMapper.writeValueAsString(request)))
+    mockMvc.perform(multipart("/api/auth/signup")
+        .file(mockFile)
+        .param("email", "invalid-email")
+        .param("password", "password123!")
+        .param("nickname", "testuser"))
       .andExpect(status().isBadRequest());
   }
 
@@ -131,7 +159,7 @@ class AuthControllerTest {
     LoginResultResponse loginResult = new LoginResultResponse(user, accessToken, refreshToken);
 
     // 4. authService.login()이 호출되면, 위에서 만든 가짜 결과를 반환하도록 설정
-    when(authService.login(any(LoginRequest.class))).thenReturn(loginResult);
+    when(authService.login(any(LoginRequest.class), any(), any())).thenReturn(loginResult);
 
     // --- WHEN (API를 호출했을 때) ---
     mockMvc.perform(post("/api/auth/login") // AuthController에 정의된 경로

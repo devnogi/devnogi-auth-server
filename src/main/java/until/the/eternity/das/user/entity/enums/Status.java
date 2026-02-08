@@ -1,6 +1,7 @@
 package until.the.eternity.das.user.entity.enums;
 
-import lombok.*;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 
 @Getter
 @RequiredArgsConstructor

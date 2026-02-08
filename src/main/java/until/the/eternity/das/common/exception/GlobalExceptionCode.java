@@ -15,6 +15,7 @@ public enum GlobalExceptionCode implements ExceptionCode {
   // JWT TOKEN
   INVALID_TOKEN(UNAUTHORIZED, "유효하지 않는 토큰입니다."),
   EXPIRED_TOKEN(UNAUTHORIZED, "만료된 토큰입니다."),
+  INVALID_REFRESH_TOKEN(UNAUTHORIZED, "유효하지 않은 리프레시 토큰입니다."),
 
   // AUTH
   EMAIL_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 가입되어 있는 이메일입니다."),
