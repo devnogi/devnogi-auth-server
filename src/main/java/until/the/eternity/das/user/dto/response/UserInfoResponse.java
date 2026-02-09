@@ -1,6 +1,5 @@
 package until.the.eternity.das.user.dto.response;
 
-import until.the.eternity.das.role.entity.Role;
 import until.the.eternity.das.user.entity.User;
 
 import java.time.LocalDateTime;
@@ -10,7 +9,7 @@ public record UserInfoResponse(
   String email,
   String nickname,
   String profileImageUrl,
-  Role role,
+  String role,
   LocalDateTime createdAt,
   LocalDateTime lastLoginAt
 ) {
@@ -20,7 +19,9 @@ public record UserInfoResponse(
       user.getEmail(),
       user.getNickname(),
       user.getProfileImageUrl(),
-      user.getRole(),
+      user.getRole()
+        .getName()
+        .toString(),
       user.getCreatedAt(),
       user.getLastLoginAt()
     );

@@ -1,6 +1,5 @@
 package until.the.eternity.das.auth.dto.response;
 
-import until.the.eternity.das.role.entity.Role;
 import until.the.eternity.das.user.entity.User;
 
 public record LoginResponse(
@@ -8,7 +7,7 @@ public record LoginResponse(
   String nickname,
   String email,
   String profileImageUrl,
-  Role role
+  String role
 ) {
   public static LoginResponse from(User user) {
     return new LoginResponse(
@@ -16,6 +15,8 @@ public record LoginResponse(
       user.getNickname(),
       user.getEmail(),
       user.getProfileImageUrl(),
-      user.getRole());
+      user.getRole()
+        .getName()
+        .toString());
   }
 }
