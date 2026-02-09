@@ -17,6 +17,6 @@ public record LoginResponse(
       user.getProfileImageUrl(),
       user.getRole()
         .getName()
-        .toString());
+        .name());
   }
 }

@@ -21,7 +21,7 @@ public record UserInfoResponse(
       user.getProfileImageUrl(),
       user.getRole()
         .getName()
-        .toString(),
+        .name(),
       user.getCreatedAt(),
       user.getLastLoginAt()
     );
