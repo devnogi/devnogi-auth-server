@@ -25,7 +25,7 @@ public class CookieUtil {
       .sameSite("None")
       .path("/")
       .domain(".memonogi.com")
-      .maxAge(jwtConstant.getAccessTokenValidity())
+      .maxAge(jwtConstant.getAccessTokenValidity() / 1000)
       .build();
 
     response.addHeader("Set-Cookie", cookie.toString());
@@ -44,7 +44,7 @@ public class CookieUtil {
       .sameSite("None")
       .path("/")
       .domain(".memonogi.com")
-      .maxAge(jwtConstant.getRefreshTokenValidity())
+      .maxAge(jwtConstant.getRefreshTokenValidity() / 1000)
       .build();
 
     response.addHeader("Set-Cookie", cookie.toString());
