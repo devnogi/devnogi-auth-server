@@ -341,10 +341,10 @@ public class UserVerificationService {
     if (limit == null) {
       return 20;
     }
-    if (limit < 1) {
-      return 1;
+    if (limit < 1 || limit > 100) {
+      throw new CustomException(GlobalExceptionCode.USER_VERIFICATION_HISTORY_LIMIT_INVALID);
     }
-    return Math.min(limit, 100);
+    return limit;
   }
 
   private String normalizeSort(String sort) {

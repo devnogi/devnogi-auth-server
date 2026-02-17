@@ -44,6 +44,7 @@ public enum GlobalExceptionCode implements ExceptionCode {
   USER_VERIFICATION_TOKEN_NOT_FOUND(HttpStatus.BAD_REQUEST, "발급된 인증 토큰이 존재하지 않습니다."),
   USER_VERIFICATION_TOKEN_ALREADY_EXISTS(HttpStatus.BAD_REQUEST, "이미 유효한 인증 토큰이 존재합니다. 재발급을 이용해주세요."),
   USER_VERIFICATION_COOLDOWN_ACTIVE(HttpStatus.BAD_REQUEST, "최근 7일 이내 인증 성공 이력이 있어 토큰 발급이 불가능합니다."),
+  USER_VERIFICATION_HISTORY_LIMIT_INVALID(HttpStatus.BAD_REQUEST, "인증 내역 조회 limit는 1 이상 100 이하의 값만 허용됩니다."),
   USER_VERIFICATION_INVALID(HttpStatus.BAD_REQUEST, "유효하지 않거나 만료된 인증 코드입니다."),
 
   // OAUTH

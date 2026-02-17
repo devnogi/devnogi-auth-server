@@ -2,6 +2,7 @@ package until.the.eternity.das.user.application;
 
 import jakarta.transaction.Transactional;
 import java.util.Objects;
+import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import until.the.eternity.das.common.aop.ActiveUserRequired;
@@ -20,6 +21,8 @@ import until.the.eternity.das.user.entity.enums.Status;
 @RequiredArgsConstructor
 public class UserService {
 
+  private static final Pattern NICKNAME_PATTERN = Pattern.compile("^[\\uAC00-\\uD7A3a-zA-Z0-9]{2,20}$");
+
   private final UserRepository userRepository;
   private final S3Service s3Service;
   private final KafkaProducerService kafkaProducerService;
@@ -30,11 +33,16 @@ public class UserService {
     User user = userRepository.findById(userId)
       .orElseThrow(() -> new CustomException(GlobalExceptionCode.USER_NOT_EXISTS));
 
-    boolean wantsNicknameChange =
-      request.nickname() != null && !Objects.equals(request.nickname(), user.getNickname());
-    ensureIdentityUpdateAllowed(user, wantsNicknameChange, false);
+    String nextNickname = resolveNextNickname(request.nickname(), user.getNickname());
 
-    String profileImageUrl = null;
+    boolean wantsNicknameChange = !Objects.equals(nextNickname, user.getNickname());
+    ensureIdentityUpdateAllowed(user, wantsNicknameChange, false);
+    if (wantsNicknameChange) {
+      validateNickname(nextNickname);
+      ensureNicknameAvailable(nextNickname, userId);
+    }
+
+    String profileImageUrl = user.getProfileImageUrl();
 
     if (request.file() != null) {
       if (user.getProfileImageUrl() != null) {
@@ -46,7 +54,7 @@ public class UserService {
     }
 
     try {
-      user.updateUserInfo(request.nickname(), profileImageUrl);
+      user.updateUserInfo(nextNickname, profileImageUrl);
 
       UserInfoUpdateEvent kafKaEvent = UserInfoUpdateEvent.of(user);
 
@@ -85,6 +93,25 @@ public class UserService {
   private void ensureIdentityUpdateAllowed(User user, boolean wantsNicknameChange, boolean wantsServerNameChange) {
     if (user.isVerified() && (wantsNicknameChange || wantsServerNameChange)) {
       throw new CustomException(GlobalExceptionCode.USER_VERIFICATION_REQUIRED_FOR_IDENTITY_UPDATE);
+    }
+  }
+
+  private String resolveNextNickname(String requestedNickname, String currentNickname) {
+    if (requestedNickname == null || requestedNickname.isBlank()) {
+      return currentNickname;
+    }
+    return requestedNickname.trim();
+  }
+
+  private void validateNickname(String nickname) {
+    if (!NICKNAME_PATTERN.matcher(nickname).matches()) {
+      throw new CustomException(GlobalExceptionCode.INVALID_NICKNAME_FORMAT);
+    }
+  }
+
+  private void ensureNicknameAvailable(String nickname, Long userId) {
+    if (userRepository.existsByNicknameAndIdNot(nickname, userId)) {
+      throw new CustomException(GlobalExceptionCode.NICKNAME_ALREADY_EXISTS);
     }
   }
 
