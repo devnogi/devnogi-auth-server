@@ -21,7 +21,7 @@ import until.the.eternity.das.user.entity.enums.Status;
 @RequiredArgsConstructor
 public class UserService {
 
-  private static final Pattern NICKNAME_PATTERN = Pattern.compile("^[\\uAC00-\\uD7A3a-zA-Z0-9]{2,20}$");
+  private static final Pattern NICKNAME_PATTERN = Pattern.compile("^[가-힣a-zA-Z0-9]{2,20}$");
 
   private final UserRepository userRepository;
   private final S3Service s3Service;
