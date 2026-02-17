@@ -24,6 +24,7 @@ import until.the.eternity.das.user.entity.UserRepository;
 import until.the.eternity.das.verification.dto.response.UserVerificationHistoryResponse;
 import until.the.eternity.das.verification.dto.response.UserVerificationHistoryListResponse;
 import until.the.eternity.das.verification.dto.response.UserVerificationInfoResponse;
+import until.the.eternity.das.verification.dto.response.UserVerificationPublicSummaryResponse;
 import until.the.eternity.das.verification.dto.response.UserVerificationTokenIssueResponse;
 import until.the.eternity.das.verification.dto.response.UserVerificationTokenResponse;
 import until.the.eternity.das.verification.entity.UserVerification;
@@ -131,6 +132,26 @@ public class UserVerificationService {
   public UserVerificationInfoResponse getUserVerificationInfo(Long userId) {
     ensureUserExists(userId);
     return UserVerificationInfoResponse.of(userId, userVerificationRepository.findByUserId(userId).orElse(null));
+  }
+
+  @Transactional(readOnly = true)
+  public UserVerificationPublicSummaryResponse getUserVerificationPublicSummary(Long userId, Integer limit) {
+    ensureUserExists(userId);
+
+    int normalizedLimit = normalizeLimit(limit);
+
+    List<UserVerificationHistoryResponse> histories = userVerificationHistoryRepository
+      .findTop100ByUserIdOrderByVerifiedAtDesc(userId)
+      .stream()
+      .limit(normalizedLimit)
+      .map(UserVerificationHistoryResponse::of)
+      .toList();
+
+    return UserVerificationPublicSummaryResponse.of(
+      userId,
+      userVerificationRepository.findByUserId(userId).orElse(null),
+      histories
+    );
   }
 
   @Transactional

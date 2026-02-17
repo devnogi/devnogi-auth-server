@@ -9,6 +9,7 @@ public record UserInfoResponse(
   String email,
   String nickname,
   String profileImageUrl,
+  String serverName,
   String role,
   boolean verified,
   LocalDateTime createdAt,
@@ -20,6 +21,7 @@ public record UserInfoResponse(
       user.getEmail(),
       user.getNickname(),
       user.getProfileImageUrl(),
+      user.getServerName(),
       user.getRole()
         .getName()
         .name(),

@@ -13,6 +13,7 @@ import until.the.eternity.das.common.response.CommonResponse;
 import until.the.eternity.das.verification.application.UserVerificationService;
 import until.the.eternity.das.verification.dto.response.UserVerificationHistoryListResponse;
 import until.the.eternity.das.verification.dto.response.UserVerificationInfoResponse;
+import until.the.eternity.das.verification.dto.response.UserVerificationPublicSummaryResponse;
 import until.the.eternity.das.verification.dto.response.UserVerificationTokenIssueResponse;
 import until.the.eternity.das.verification.dto.response.UserVerificationTokenResponse;
 
@@ -65,5 +66,15 @@ public class UserVerificationController {
     @PathVariable Long userId
   ) {
     return ResponseEntity.ok(CommonResponse.success(userVerificationService.getUserVerificationInfo(userId)));
+  }
+
+  @GetMapping("/public/users/{userId}/summary")
+  public ResponseEntity<CommonResponse<UserVerificationPublicSummaryResponse>> getUserVerificationPublicSummary(
+    @PathVariable Long userId,
+    @RequestParam(defaultValue = "20") Integer limit
+  ) {
+    return ResponseEntity.ok(
+      CommonResponse.success(userVerificationService.getUserVerificationPublicSummary(userId, limit))
+    );
   }
 }
