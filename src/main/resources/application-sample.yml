@@ -98,6 +98,10 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       # 값을 JSON 형태로 보내기 위한 설정
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP_ID:devnogi-auth-user-verification-consumer}
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
   resources:
     static-locations: classpath:/static/
   mvc:
@@ -149,6 +153,17 @@ decorator:
   datasource:
     p6spy:
       enable-logging: false
+
+app:
+  verification:
+    prefix: ${USER_VERIFICATION_PREFIX:메모노기_}
+    length: ${USER_VERIFICATION_LENGTH:20}
+    validity-minutes: ${USER_VERIFICATION_VALIDITY_MINUTES:60}
+    cooldown-days: ${USER_VERIFICATION_COOLDOWN_DAYS:7}
+    hash-secret: ${USER_VERIFICATION_HASH_SECRET:change-this-secret}
+  kafka:
+    topics:
+      user-verification-verify: ${KAFKA_TOPIC_USER_VERIFICATION_VERIFY:USER_VERIFICATION_VERIFY_EVENT}
 
 ---
 spring:

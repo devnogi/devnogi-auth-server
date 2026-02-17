@@ -68,6 +68,18 @@ public class User {
   @Enumerated(EnumType.STRING)
   private InactivatedType inactivatedType;
 
+  @Column(name = "server_name", length = 20)
+  @Comment("게임 서버명")
+  private String serverName;
+
+  @Column(name = "is_verified", nullable = false)
+  @Comment("사용자 인증 상태")
+  private boolean verified;
+
+  @Column(name = "verified_at")
+  @Comment("최근 인증 성공 시각")
+  private LocalDateTime verifiedAt;
+
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "role_id")
   private Role role;
@@ -88,6 +100,20 @@ public class User {
   public void updateUserStatus(Status status) {
     this.status = status;
     this.inactivatedAt = LocalDateTime.now();
+  }
+
+  public void updateServerName(String serverName) {
+    this.serverName = serverName;
+  }
+
+  public void updateVerificationStatus(boolean verified, LocalDateTime verifiedAt) {
+    this.verified = verified;
+    this.verifiedAt = verifiedAt;
+  }
+
+  public void updateGameProfile(String nickname, String serverName) {
+    this.nickname = nickname;
+    this.serverName = serverName;
   }
 
 }
