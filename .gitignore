@@ -43,3 +43,6 @@ application.yml
 
 ### Docker-Compose ###
 .env
+.env.local
+.env.dev
+.env.prod

@@ -44,6 +44,8 @@ public class SecurityConfig {
       .hasRole("SUPER_ADMIN")
       .requestMatchers("/api/auth/**")
       .permitAll()
+      .requestMatchers("/api/user/verification/public/**")
+      .permitAll()
       .requestMatchers("/api/admin/")
       .hasAnyRole("ADMIN", "SUPER_ADMIN")
 
