@@ -1,0 +1,34 @@
+version: "3.8"
+
+services:
+  auth-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: devnogi-auth-server:local
+    container_name: devnogi-auth-server-local
+    ports:
+      - "${SERVER_PORT:-8091}:${SERVER_PORT:-8091}"
+    env_file:
+      - .env
+    environment:
+      SPRING_PROFILES_ACTIVE: default
+      SERVER_PORT: ${SERVER_PORT:-8091}
+      DB_IP: ${DB_IP:-host.docker.internal}
+      DB_PORT: ${DB_PORT:-3316}
+      DB_SCHEMA: ${DB_SCHEMA:-devnogi}
+      DB_USER: ${DB_USER:-devnogi}
+      DB_PASSWORD: ${DB_PASSWORD:-devnogi0529!}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-119.194.235.11:9102}
+      KAFKA_TOPIC_USER_VERIFICATION_VERIFY: ${KAFKA_TOPIC_USER_VERIFICATION_VERIFY:-USER_VERIFICATION_VERIFY_EVENT}
+      KAFKA_CONSUMER_GROUP_ID: ${KAFKA_CONSUMER_GROUP_ID:-devnogi-auth-user-verification-consumer-local}
+      JAVA_OPTS: -Xms256m -Xmx512m
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:${SERVER_PORT:-8091}/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
