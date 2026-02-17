@@ -10,6 +10,7 @@ public record UserInfoResponse(
   String nickname,
   String profileImageUrl,
   String role,
+  boolean verified,
   LocalDateTime createdAt,
   LocalDateTime lastLoginAt
 ) {
@@ -22,6 +23,7 @@ public record UserInfoResponse(
       user.getRole()
         .getName()
         .name(),
+      user.isVerified(),
       user.getCreatedAt(),
       user.getLastLoginAt()
     );
