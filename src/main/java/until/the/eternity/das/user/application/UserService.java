@@ -1,6 +1,7 @@
 package until.the.eternity.das.user.application;
 
 import jakarta.transaction.Transactional;
+import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import until.the.eternity.das.common.aop.ActiveUserRequired;
@@ -28,6 +29,10 @@ public class UserService {
   public Boolean updateUserInfo(UserInfoUpdateRequest request, Long userId) {
     User user = userRepository.findById(userId)
       .orElseThrow(() -> new CustomException(GlobalExceptionCode.USER_NOT_EXISTS));
+
+    boolean wantsNicknameChange =
+      request.nickname() != null && !Objects.equals(request.nickname(), user.getNickname());
+    ensureIdentityUpdateAllowed(user, wantsNicknameChange, false);
 
     String profileImageUrl = null;
 
@@ -75,6 +80,12 @@ public class UserService {
   @Transactional
   public Boolean updateUserPassword() {
     return false;
+  }
+
+  private void ensureIdentityUpdateAllowed(User user, boolean wantsNicknameChange, boolean wantsServerNameChange) {
+    if (user.isVerified() && (wantsNicknameChange || wantsServerNameChange)) {
+      throw new CustomException(GlobalExceptionCode.USER_VERIFICATION_REQUIRED_FOR_IDENTITY_UPDATE);
+    }
   }
 
 }
