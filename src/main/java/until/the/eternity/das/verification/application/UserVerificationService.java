@@ -156,72 +156,88 @@ public class UserVerificationService {
 
   @Transactional
   public void verifyFromKafkaPayload(String payload) {
-    UserVerificationVerifyMessage event = parseMessage(payload);
-    if (event == null) {
-      return;
+    try {
+      UserVerificationVerifyMessage event = parseMessage(payload);
+      if (event == null) {
+        return;
+      }
+
+      LocalDateTime now = LocalDateTime.now();
+
+      if (event.verificationValue() == null || event.verificationValue().isBlank()) {
+        saveFailureHistory(null, null, event.verificationValue(), event.serverName(), event.characterName(), now,
+          VerificationFailureReason.INVALID_MESSAGE);
+        return;
+      }
+
+      String normalizedTokenValue = normalizeTokenValue(event.verificationValue());
+      UserVerificationToken token = userVerificationTokenRepository.findByTokenValue(normalizedTokenValue).orElse(null);
+
+      if (token == null) {
+        saveFailureHistory(null, null, normalizedTokenValue, event.serverName(), event.characterName(), now,
+          VerificationFailureReason.TOKEN_NOT_FOUND);
+        return;
+      }
+
+      User user = token.getUser();
+
+      if (token.isRevoked()) {
+        saveFailureHistory(user, token, normalizedTokenValue, event.serverName(), event.characterName(), now,
+          VerificationFailureReason.TOKEN_REVOKED);
+        return;
+      }
+
+      if (token.isExpired(now)) {
+        saveFailureHistory(user, token, normalizedTokenValue, event.serverName(), event.characterName(), now,
+          VerificationFailureReason.TOKEN_EXPIRED);
+        return;
+      }
+
+      if (token.isVerified()) {
+        saveFailureHistory(user, token, normalizedTokenValue, event.serverName(), event.characterName(), now,
+          VerificationFailureReason.TOKEN_ALREADY_VERIFIED);
+        return;
+      }
+
+      if (event.serverName() == null || event.serverName().isBlank()
+        || event.characterName() == null || event.characterName().isBlank()) {
+        saveFailureHistory(user, token, normalizedTokenValue, event.serverName(), event.characterName(), now,
+          VerificationFailureReason.INVALID_MESSAGE);
+        return;
+      }
+
+      invalidatePreviousOwner(event.serverName(), event.characterName(), user.getId());
+
+      UserVerification verification = userVerificationRepository.findByUserId(user.getId())
+        .orElseGet(() -> UserVerification.builder().user(user).verificationCount(0).verified(false).build());
+
+      verification.markVerified(event.serverName(), event.characterName(), now, token.getId());
+      token.markVerified(now);
+
+      user.updateServerName(event.serverName());
+      user.updateVerificationStatus(true, now);
+
+      userVerificationRepository.save(verification);
+
+      userVerificationHistoryRepository.save(
+        UserVerificationHistory.builder()
+          .user(user)
+          .serverName(event.serverName())
+          .characterName(event.characterName())
+          .verifiedAt(now)
+          .verificationSuccess(true)
+          .token(token)
+          .build()
+      );
+
+      logVerificationResult(true, "VERIFIED", user.getId(), normalizedTokenValue, event.serverName(), event.characterName());
+    } catch (CustomException e) {
+      log.error("User verification processing failed. payload={}", payload, e);
+      throw e;
+    } catch (Exception e) {
+      log.error("Unexpected error while processing user verification payload. payload={}", payload, e);
+      throw new CustomException(GlobalExceptionCode.USER_VERIFICATION_INVALID);
     }
-
-    LocalDateTime now = LocalDateTime.now();
-
-    if (event.verificationValue() == null || event.verificationValue().isBlank()) {
-      saveFailureHistory(null, null, event.serverName(), event.characterName(), now, VerificationFailureReason.INVALID_MESSAGE);
-      return;
-    }
-
-    String normalizedTokenValue = normalizeTokenValue(event.verificationValue());
-    UserVerificationToken token = userVerificationTokenRepository.findByTokenValue(normalizedTokenValue).orElse(null);
-
-    if (token == null) {
-      saveFailureHistory(null, null, event.serverName(), event.characterName(), now, VerificationFailureReason.TOKEN_NOT_FOUND);
-      return;
-    }
-
-    User user = token.getUser();
-
-    if (token.isRevoked()) {
-      saveFailureHistory(user, token, event.serverName(), event.characterName(), now, VerificationFailureReason.TOKEN_REVOKED);
-      return;
-    }
-
-    if (token.isExpired(now)) {
-      saveFailureHistory(user, token, event.serverName(), event.characterName(), now, VerificationFailureReason.TOKEN_EXPIRED);
-      return;
-    }
-
-    if (token.isVerified()) {
-      saveFailureHistory(user, token, event.serverName(), event.characterName(), now, VerificationFailureReason.TOKEN_ALREADY_VERIFIED);
-      return;
-    }
-
-    if (event.serverName() == null || event.serverName().isBlank()
-      || event.characterName() == null || event.characterName().isBlank()) {
-      saveFailureHistory(user, token, event.serverName(), event.characterName(), now, VerificationFailureReason.INVALID_MESSAGE);
-      return;
-    }
-
-    invalidatePreviousOwner(event.serverName(), event.characterName(), user.getId());
-
-    UserVerification verification = userVerificationRepository.findByUserId(user.getId())
-      .orElseGet(() -> UserVerification.builder().user(user).verificationCount(0).verified(false).build());
-
-    verification.markVerified(event.serverName(), event.characterName(), now, token.getId());
-    token.markVerified(now);
-
-    user.updateServerName(event.serverName());
-    user.updateVerificationStatus(true, now);
-
-    userVerificationRepository.save(verification);
-
-    userVerificationHistoryRepository.save(
-      UserVerificationHistory.builder()
-        .user(user)
-        .serverName(event.serverName())
-        .characterName(event.characterName())
-        .verifiedAt(now)
-        .verificationSuccess(true)
-        .token(token)
-        .build()
-    );
   }
 
   private UserVerificationTokenIssueResponse issueTokenInternal(Long userId, boolean reissue) {
@@ -282,7 +298,7 @@ public class UserVerificationService {
       return objectMapper.readValue(payload, UserVerificationVerifyMessage.class);
     } catch (JsonProcessingException e) {
       log.warn("Invalid kafka payload for verification. payload={}", payload);
-      saveFailureHistory(null, null, null, null, LocalDateTime.now(), VerificationFailureReason.INVALID_MESSAGE);
+      saveFailureHistory(null, null, null, null, null, LocalDateTime.now(), VerificationFailureReason.INVALID_MESSAGE);
       return null;
     }
   }
@@ -290,6 +306,7 @@ public class UserVerificationService {
   private void saveFailureHistory(
     User user,
     UserVerificationToken token,
+    String providedTokenValue,
     String serverName,
     String characterName,
     LocalDateTime now,
@@ -305,6 +322,19 @@ public class UserVerificationService {
         .failureReason(reason)
         .token(token)
         .build()
+    );
+
+    String tokenValueForLog = providedTokenValue != null
+      ? providedTokenValue
+      : token == null ? null : token.getTokenValue();
+
+    logVerificationResult(
+      false,
+      reason.name(),
+      user == null ? null : user.getId(),
+      tokenValueForLog,
+      serverName,
+      characterName
     );
   }
 
@@ -353,6 +383,25 @@ public class UserVerificationService {
       return "latest";
     }
     return "oldest".equalsIgnoreCase(sort) ? "oldest" : "latest";
+  }
+
+  private void logVerificationResult(
+    boolean success,
+    String result,
+    Long userId,
+    String tokenValue,
+    String serverName,
+    String characterName
+  ) {
+    log.info(
+      "User verification {} via kafka. result={}, userId={}, tokenValue={}, serverName={}, characterName={}",
+      success ? "success" : "failure",
+      result,
+      userId,
+      tokenValue,
+      serverName,
+      characterName
+    );
   }
 
   private String normalizeTokenValue(String tokenValue) {
