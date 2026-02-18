@@ -168,7 +168,8 @@ public class UserVerificationService {
       return;
     }
 
-    UserVerificationToken token = userVerificationTokenRepository.findByTokenValue(event.verificationValue()).orElse(null);
+    String normalizedTokenValue = normalizeTokenValue(event.verificationValue());
+    UserVerificationToken token = userVerificationTokenRepository.findByTokenValue(normalizedTokenValue).orElse(null);
 
     if (token == null) {
       saveFailureHistory(null, null, event.serverName(), event.characterName(), now, VerificationFailureReason.TOKEN_NOT_FOUND);
@@ -352,6 +353,15 @@ public class UserVerificationService {
       return "latest";
     }
     return "oldest".equalsIgnoreCase(sort) ? "oldest" : "latest";
+  }
+
+  private String normalizeTokenValue(String tokenValue) {
+    if (tokenValue == null) {
+      return null;
+    }
+    return tokenValue.startsWith(verificationPrefix)
+      ? tokenValue.substring(verificationPrefix.length())
+      : tokenValue;
   }
 
   private void ensureUserExists(Long userId) {
