@@ -2,27 +2,20 @@ package until.the.eternity.das.verification.application;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.nio.charset.StandardCharsets;
-import java.security.SecureRandom;
-import java.time.Duration;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.util.Collections;
-import java.util.List;
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import until.the.eternity.das.common.aop.ActiveUserRequired;
+import until.the.eternity.das.common.application.KafkaProducerService;
 import until.the.eternity.das.common.exception.CustomException;
 import until.the.eternity.das.common.exception.GlobalExceptionCode;
+import until.the.eternity.das.user.dto.response.UserInfoUpdateEvent;
 import until.the.eternity.das.user.entity.User;
 import until.the.eternity.das.user.entity.UserRepository;
-import until.the.eternity.das.verification.dto.response.UserVerificationHistoryResponse;
 import until.the.eternity.das.verification.dto.response.UserVerificationHistoryListResponse;
+import until.the.eternity.das.verification.dto.response.UserVerificationHistoryResponse;
 import until.the.eternity.das.verification.dto.response.UserVerificationInfoResponse;
 import until.the.eternity.das.verification.dto.response.UserVerificationPublicSummaryResponse;
 import until.the.eternity.das.verification.dto.response.UserVerificationTokenIssueResponse;
@@ -37,6 +30,16 @@ import until.the.eternity.das.verification.entity.enums.VerificationFailureReaso
 import until.the.eternity.das.verification.entity.enums.VerificationTokenStatus;
 import until.the.eternity.das.verification.kafka.UserVerificationVerifyMessage;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.util.Collections;
+import java.util.List;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -50,6 +53,7 @@ public class UserVerificationService {
   private final UserVerificationTokenRepository userVerificationTokenRepository;
   private final UserVerificationRepository userVerificationRepository;
   private final UserVerificationHistoryRepository userVerificationHistoryRepository;
+  private final KafkaProducerService kafkaProducerService;
   private final ObjectMapper objectMapper;
 
   private final SecureRandom secureRandom = new SecureRandom();
@@ -95,7 +99,8 @@ public class UserVerificationService {
   @ActiveUserRequired
   public UserVerificationInfoResponse getMyVerificationInfo(Long userId) {
     ensureUserExists(userId);
-    return UserVerificationInfoResponse.of(userId, userVerificationRepository.findByUserId(userId).orElse(null));
+    return UserVerificationInfoResponse.of(userId, userVerificationRepository.findByUserId(userId)
+      .orElse(null));
   }
 
   @Transactional(readOnly = true)
@@ -106,13 +111,15 @@ public class UserVerificationService {
     int normalizedLimit = normalizeLimit(limit);
     String normalizedSort = normalizeSort(sort);
 
-    List<UserVerificationHistoryResponse> items = userVerificationHistoryRepository.findTop100ByUserIdOrderByVerifiedAtDesc(userId)
+    List<UserVerificationHistoryResponse> items = userVerificationHistoryRepository.findTop100ByUserIdOrderByVerifiedAtDesc(
+        userId)
       .stream()
       .map(UserVerificationHistoryResponse::of)
       .toList();
 
     if ("oldest".equals(normalizedSort)) {
-      items = items.stream().collect(java.util.stream.Collectors.toList());
+      items = items.stream()
+        .collect(java.util.stream.Collectors.toList());
       Collections.reverse(items);
     }
 
@@ -131,7 +138,8 @@ public class UserVerificationService {
   @Transactional(readOnly = true)
   public UserVerificationInfoResponse getUserVerificationInfo(Long userId) {
     ensureUserExists(userId);
-    return UserVerificationInfoResponse.of(userId, userVerificationRepository.findByUserId(userId).orElse(null));
+    return UserVerificationInfoResponse.of(userId, userVerificationRepository.findByUserId(userId)
+      .orElse(null));
   }
 
   @Transactional(readOnly = true)
@@ -149,7 +157,8 @@ public class UserVerificationService {
 
     return UserVerificationPublicSummaryResponse.of(
       userId,
-      userVerificationRepository.findByUserId(userId).orElse(null),
+      userVerificationRepository.findByUserId(userId)
+        .orElse(null),
       histories
     );
   }
@@ -164,14 +173,16 @@ public class UserVerificationService {
 
       LocalDateTime now = LocalDateTime.now();
 
-      if (event.verificationValue() == null || event.verificationValue().isBlank()) {
+      if (event.verificationValue() == null || event.verificationValue()
+        .isBlank()) {
         saveFailureHistory(null, null, event.verificationValue(), event.serverName(), event.characterName(), now,
           VerificationFailureReason.INVALID_MESSAGE);
         return;
       }
 
       String normalizedTokenValue = normalizeTokenValue(event.verificationValue());
-      UserVerificationToken token = userVerificationTokenRepository.findByTokenValue(normalizedTokenValue).orElse(null);
+      UserVerificationToken token = userVerificationTokenRepository.findByTokenValue(normalizedTokenValue)
+        .orElse(null);
 
       if (token == null) {
         saveFailureHistory(null, null, normalizedTokenValue, event.serverName(), event.characterName(), now,
@@ -199,22 +210,35 @@ public class UserVerificationService {
         return;
       }
 
-      if (event.serverName() == null || event.serverName().isBlank()
-        || event.characterName() == null || event.characterName().isBlank()) {
+      if (event.serverName() == null || event.serverName()
+        .isBlank()
+        || event.characterName() == null || event.characterName()
+        .isBlank()) {
         saveFailureHistory(user, token, normalizedTokenValue, event.serverName(), event.characterName(), now,
           VerificationFailureReason.INVALID_MESSAGE);
+        return;
+      }
+
+      // Check if character name is already used by another user as nickname
+      if (userRepository.existsByNicknameAndIdNot(event.characterName(), user.getId())) {
+        saveFailureHistory(user, token, normalizedTokenValue, event.serverName(), event.characterName(), now,
+          VerificationFailureReason.NICKNAME_DUPLICATED);
         return;
       }
 
       invalidatePreviousOwner(event.serverName(), event.characterName(), user.getId());
 
       UserVerification verification = userVerificationRepository.findByUserId(user.getId())
-        .orElseGet(() -> UserVerification.builder().user(user).verificationCount(0).verified(false).build());
+        .orElseGet(() -> UserVerification.builder()
+          .user(user)
+          .verificationCount(0)
+          .verified(false)
+          .build());
 
       verification.markVerified(event.serverName(), event.characterName(), now, token.getId());
       token.markVerified(now);
 
-      user.updateServerName(event.serverName());
+      user.updateGameProfile(event.characterName(), event.serverName());
       user.updateVerificationStatus(true, now);
 
       userVerificationRepository.save(verification);
@@ -230,7 +254,11 @@ public class UserVerificationService {
           .build()
       );
 
-      logVerificationResult(true, "VERIFIED", user.getId(), normalizedTokenValue, event.serverName(), event.characterName());
+      // Send Kafka event
+      kafkaProducerService.sendUserInfoUpdateEvent(UserInfoUpdateEvent.of(user));
+
+      logVerificationResult(true, "VERIFIED", user.getId(), normalizedTokenValue, event.serverName(),
+        event.characterName());
     } catch (CustomException e) {
       log.error("User verification processing failed. payload={}", payload, e);
       throw e;
@@ -246,7 +274,8 @@ public class UserVerificationService {
 
     LocalDateTime now = LocalDateTime.now();
 
-    UserVerification verification = userVerificationRepository.findByUserId(userId).orElse(null);
+    UserVerification verification = userVerificationRepository.findByUserId(userId)
+      .orElse(null);
     if (verification != null && verification.hasRecentSuccess(now.minusDays(verificationCooldownDays))) {
       throw new CustomException(GlobalExceptionCode.USER_VERIFICATION_COOLDOWN_ACTIVE);
     }
@@ -285,12 +314,15 @@ public class UserVerificationService {
       .findByServerNameAndCharacterNameAndVerifiedTrue(serverName, characterName)
       .orElse(null);
 
-    if (existingOwner == null || existingOwner.getUser().getId().equals(currentUserId)) {
+    if (existingOwner == null || existingOwner.getUser()
+      .getId()
+      .equals(currentUserId)) {
       return;
     }
 
     existingOwner.invalidate();
-    existingOwner.getUser().updateVerificationStatus(false, null);
+    existingOwner.getUser()
+      .updateVerificationStatus(false, null);
   }
 
   private UserVerificationVerifyMessage parseMessage(String payload) {
@@ -340,7 +372,8 @@ public class UserVerificationService {
 
   private UserVerificationTokenResponse toTokenResponse(UserVerificationToken token) {
     LocalDateTime now = LocalDateTime.now();
-    long expiresInSeconds = Math.max(0, Duration.between(now, token.getExpiresAt()).getSeconds());
+    long expiresInSeconds = Math.max(0, Duration.between(now, token.getExpiresAt())
+      .getSeconds());
     VerificationTokenStatus status = resolveTokenStatus(token, now);
 
     return new UserVerificationTokenResponse(
@@ -420,7 +453,8 @@ public class UserVerificationService {
   }
 
   private String generateUniqueVerificationValue(Long userId, LocalDateTime issuedAt) {
-    long issuedAtMillis = issuedAt.toInstant(ZoneOffset.UTC).toEpochMilli();
+    long issuedAtMillis = issuedAt.toInstant(ZoneOffset.UTC)
+      .toEpochMilli();
 
     for (int retry = 0; retry < MAX_GENERATION_RETRY; retry++) {
       String candidate = buildHashedVerificationValue(userId, issuedAtMillis);
