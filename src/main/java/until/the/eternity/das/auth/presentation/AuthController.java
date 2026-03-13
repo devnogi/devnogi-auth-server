@@ -11,7 +11,13 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 import until.the.eternity.das.auth.application.AuthService;
 import until.the.eternity.das.auth.dto.request.LoginRequest;
 import until.the.eternity.das.auth.dto.request.SignUpRequest;
@@ -27,6 +33,7 @@ import until.the.eternity.das.common.util.CookieUtil;
 import until.the.eternity.das.common.util.JwtUtil;
 import until.the.eternity.das.oauth.service.SocialAuthService;
 import until.the.eternity.das.token.application.TokenService;
+import until.the.eternity.das.user.application.UserService;
 
 import static org.springframework.http.HttpStatus.CREATED;
 
@@ -41,6 +48,7 @@ public class AuthController {
   private final CookieUtil cookieUtil;
   private final JwtUtil jwtUtil;
   private final JwtConstant jwtConstant;
+  private final UserService userService;
 
   /**
    * 회원 가입 API
@@ -166,7 +174,8 @@ public class AuthController {
     - Assignee : 안나
     """)
   public ResponseEntity<CommonResponse<Void>> logout(HttpServletResponse response) {
-    Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+    Authentication auth = SecurityContextHolder.getContext()
+      .getAuthentication();
     if (auth != null && auth.getPrincipal() instanceof Long userId) {
       authService.logout(userId);
     }
@@ -199,7 +208,7 @@ public class AuthController {
   ) {
     String clientIp = httpServletRequest.getRemoteAddr();
     String userAgent = httpServletRequest.getHeader("User-Agent");
-    
+
     LoginResultResponse loginResultResponse = authService.login(request, clientIp, userAgent);
 
     cookieUtil.createAccessTokenCookie(response, loginResultResponse.accessToken());
@@ -242,5 +251,24 @@ public class AuthController {
     LoginResponse loginResponse = LoginResponse.from(loginResultResponse.user());
 
     return ResponseEntity.ok(CommonResponse.success(loginResponse));
+  }
+
+  /**
+   * 랜덤 닉네임 생성 API
+   * {형용사} + {종족 or 직업} + {5자리 문자} 조합의 랜덤 닉네임 생성
+   *
+   * @return 랜덤 닉네임(String)
+   */
+  @GetMapping("/random-nickname")
+  @Operation(summary = "랜덤 닉네임 생성 API", description = """
+    - Description : {형용사} + {종족 or 직업} + {5자리 문자} 조합의 랜덤 닉네임이 생성됩니다.
+    """)
+  @ApiResponse(
+    responseCode = "200",
+    content = @Content(schema = @Schema(implementation = LoginResponse.class)))
+  public ResponseEntity<CommonResponse<String>> getRandomNickname() {
+    String nickname = userService.generateRandomNickname();
+
+    return ResponseEntity.ok(CommonResponse.success(nickname));
   }
 }
