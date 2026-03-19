@@ -25,7 +25,7 @@ import java.util.regex.Pattern;
 @RequiredArgsConstructor
 public class UserService {
 
-  private static final Pattern NICKNAME_PATTERN = Pattern.compile("^[가-힣a-zA-Z0-9 ]{2,30}$");
+  private static final Pattern NICKNAME_PATTERN = Pattern.compile("^[가-힣a-zA-Z0-9 ]{2,20}$");
 
   private static final String RANDOM_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
   private static final int RANDOM_SUFFIX_LENGTH = 5;
@@ -101,8 +101,14 @@ public class UserService {
 
   public String generateRandomNickname() {
     String nickname;
+    int attempt = 0;
+    int maxAttempt = 10;
 
     do {
+      if (attempt >= maxAttempt) {
+        throw new CustomException(GlobalExceptionCode.SERVER_ERROR);
+      }
+
       String adjective = NicknameAdjective.random()
         .getValue();
 
@@ -112,7 +118,7 @@ public class UserService {
       String suffix = generateRandomSuffix();
 
       nickname = String.format("%s %s %s", adjective, middle, suffix);
-
+      attempt++;
     } while (userRepository.existsByNickname(nickname));
 
     return nickname;
@@ -154,7 +160,6 @@ public class UserService {
 
     String adjective = parts[0];
     String middle = parts[1];
-    // suffix is random, so we don't validate it strictly against a list, but length check is implicit in pattern or logic
 
     if (!NicknameAdjective.contains(adjective)) {
       throw new CustomException(GlobalExceptionCode.INVALID_NICKNAME_COMBINATION);

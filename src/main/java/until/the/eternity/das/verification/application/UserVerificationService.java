@@ -48,6 +48,7 @@ public class UserVerificationService {
   private static final int MAX_GENERATION_RETRY = 20;
   private static final int NONCE_BYTES_LENGTH = 16;
   private static final String HMAC_ALGORITHM = "HmacSHA256";
+  private static final int MAX_CHARACTER_NAME_LENGTH = 50;
 
   private final UserRepository userRepository;
   private final UserVerificationTokenRepository userVerificationTokenRepository;
@@ -216,6 +217,13 @@ public class UserVerificationService {
         .isBlank()) {
         saveFailureHistory(user, token, normalizedTokenValue, event.serverName(), event.characterName(), now,
           VerificationFailureReason.INVALID_MESSAGE);
+        return;
+      }
+
+      if (event.characterName()
+        .length() > MAX_CHARACTER_NAME_LENGTH) {
+        saveFailureHistory(user, token, normalizedTokenValue, event.serverName(), event.characterName(), now,
+          VerificationFailureReason.INVALID_MESSAGE); // or an appropriate new reason like CHARACTER_NAME_TOO_LONG
         return;
       }
 

@@ -27,6 +27,7 @@ import until.the.eternity.das.oauth.service.SocialAuthService;
 import until.the.eternity.das.role.entity.Role;
 import until.the.eternity.das.role.entity.enums.Name;
 import until.the.eternity.das.token.application.TokenService;
+import until.the.eternity.das.user.application.UserService;
 import until.the.eternity.das.user.entity.User;
 import until.the.eternity.das.user.entity.UserRepository;
 
@@ -34,6 +35,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -69,6 +71,9 @@ class AuthControllerTest {
 
   @MockitoBean
   private UserRepository userRepository;
+
+  @MockitoBean
+  private UserService userService;
 
   private MockMultipartFile mockFile;
   private SignUpRequest signUpRequest;
@@ -179,5 +184,21 @@ class AuthControllerTest {
     // 3. CookieUtil의 메서드들이 올바른 토큰 값으로 호출되었는지 검증해야 한다.
     verify(cookieUtil).createAccessTokenCookie(any(HttpServletResponse.class), eq(accessToken));
     verify(cookieUtil).createRefreshTokenCookie(any(HttpServletResponse.class), eq(refreshToken));
+  }
+
+  @Test
+  @DisplayName("랜덤 닉네임 생성 API 성공 테스트")
+  void getRandomNickname_Success() throws Exception {
+    // given
+    String expectedNickname = "형용사 단어 12345";
+    when(userService.generateRandomNickname()).thenReturn(expectedNickname);
+
+    // when & then
+    mockMvc.perform(get("/api/auth/random-nickname"))
+      .andExpect(status().isOk())
+      .andExpect(jsonPath("$.code").value("COMMON_SUCCESS"))
+      .andExpect(jsonPath("$.data").value(expectedNickname));
+      
+    verify(userService).generateRandomNickname();
   }
 }

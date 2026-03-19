@@ -265,7 +265,7 @@ public class AuthController {
     """)
   @ApiResponse(
     responseCode = "200",
-    content = @Content(schema = @Schema(implementation = LoginResponse.class)))
+    content = @Content(schema = @Schema(implementation = String.class)))
   public ResponseEntity<CommonResponse<String>> getRandomNickname() {
     String nickname = userService.generateRandomNickname();
 
