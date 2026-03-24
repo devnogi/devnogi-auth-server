@@ -11,6 +11,7 @@ import until.the.eternity.das.common.aop.ActiveUserRequired;
 import until.the.eternity.das.common.application.KafkaProducerService;
 import until.the.eternity.das.common.exception.CustomException;
 import until.the.eternity.das.common.exception.GlobalExceptionCode;
+import until.the.eternity.das.user.application.UserService;
 import until.the.eternity.das.user.dto.response.UserInfoUpdateEvent;
 import until.the.eternity.das.user.entity.User;
 import until.the.eternity.das.user.entity.UserRepository;
@@ -58,6 +59,8 @@ public class UserVerificationService {
   private final ObjectMapper objectMapper;
 
   private final SecureRandom secureRandom = new SecureRandom();
+  private final UserVerificationHistoryService userVerificationHistoryService;
+  private final UserService userService;
 
   @Value("${app.verification.prefix:메모노기_}")
   private String verificationPrefix;
@@ -176,7 +179,7 @@ public class UserVerificationService {
 
       if (event.verificationValue() == null || event.verificationValue()
         .isBlank()) {
-        saveFailureHistory(null, null, event.verificationValue(), event.serverName(), event.characterName(), now,
+        recordFailure(null, null, event.verificationValue(), event.serverName(), event.characterName(), now,
           VerificationFailureReason.INVALID_MESSAGE);
         return;
       }
@@ -186,7 +189,7 @@ public class UserVerificationService {
         .orElse(null);
 
       if (token == null) {
-        saveFailureHistory(null, null, normalizedTokenValue, event.serverName(), event.characterName(), now,
+        recordFailure(null, null, normalizedTokenValue, event.serverName(), event.characterName(), now,
           VerificationFailureReason.TOKEN_NOT_FOUND);
         return;
       }
@@ -194,19 +197,19 @@ public class UserVerificationService {
       User user = token.getUser();
 
       if (token.isRevoked()) {
-        saveFailureHistory(user, token, normalizedTokenValue, event.serverName(), event.characterName(), now,
+        recordFailure(user, token, normalizedTokenValue, event.serverName(), event.characterName(), now,
           VerificationFailureReason.TOKEN_REVOKED);
         return;
       }
 
       if (token.isExpired(now)) {
-        saveFailureHistory(user, token, normalizedTokenValue, event.serverName(), event.characterName(), now,
+        recordFailure(user, token, normalizedTokenValue, event.serverName(), event.characterName(), now,
           VerificationFailureReason.TOKEN_EXPIRED);
         return;
       }
 
       if (token.isVerified()) {
-        saveFailureHistory(user, token, normalizedTokenValue, event.serverName(), event.characterName(), now,
+        recordFailure(user, token, normalizedTokenValue, event.serverName(), event.characterName(), now,
           VerificationFailureReason.TOKEN_ALREADY_VERIFIED);
         return;
       }
@@ -215,24 +218,23 @@ public class UserVerificationService {
         .isBlank()
         || event.characterName() == null || event.characterName()
         .isBlank()) {
-        saveFailureHistory(user, token, normalizedTokenValue, event.serverName(), event.characterName(), now,
+        recordFailure(user, token, normalizedTokenValue, event.serverName(), event.characterName(), now,
           VerificationFailureReason.INVALID_MESSAGE);
         return;
       }
 
       if (event.characterName()
         .length() > MAX_CHARACTER_NAME_LENGTH) {
-        saveFailureHistory(user, token, normalizedTokenValue, event.serverName(), event.characterName(), now,
+        recordFailure(user, token, normalizedTokenValue, event.serverName(), event.characterName(), now,
           VerificationFailureReason.INVALID_MESSAGE); // or an appropriate new reason like CHARACTER_NAME_TOO_LONG
         return;
       }
 
-      // Check if character name is already used by another user as nickname
-      if (userRepository.existsByNicknameAndIdNot(event.characterName(), user.getId())) {
-        saveFailureHistory(user, token, normalizedTokenValue, event.serverName(), event.characterName(), now,
-          VerificationFailureReason.NICKNAME_DUPLICATED);
-        return;
-      }
+//      if (userRepository.existsByNicknameAndIdNot(event.characterName(), user.getId())) {
+//        recordFailure(user, token, normalizedTokenValue, event.serverName(), event.characterName(), now,
+//          VerificationFailureReason.NICKNAME_DUPLICATED);
+//        return;
+//      }
 
       invalidatePreviousOwner(event.serverName(), event.characterName(), user.getId());
 
@@ -262,7 +264,6 @@ public class UserVerificationService {
           .build()
       );
 
-      // Send Kafka event
       kafkaProducerService.sendUserInfoUpdateEvent(UserInfoUpdateEvent.of(user));
 
       logVerificationResult(true, "VERIFIED", user.getId(), normalizedTokenValue, event.serverName(),
@@ -331,6 +332,15 @@ public class UserVerificationService {
     existingOwner.invalidate();
     existingOwner.getUser()
       .updateVerificationStatus(false, null);
+
+    String randomNickname = userService.generateRandomNickname();
+
+    existingOwner.getUser()
+      .updateGameProfile(
+        randomNickname,
+        null);
+
+    kafkaProducerService.sendUserInfoUpdateEvent(UserInfoUpdateEvent.of(existingOwner.getUser()));
   }
 
   private UserVerificationVerifyMessage parseMessage(String payload) {
@@ -338,12 +348,12 @@ public class UserVerificationService {
       return objectMapper.readValue(payload, UserVerificationVerifyMessage.class);
     } catch (JsonProcessingException e) {
       log.warn("Invalid kafka payload for verification. payload={}", payload);
-      saveFailureHistory(null, null, null, null, null, LocalDateTime.now(), VerificationFailureReason.INVALID_MESSAGE);
+      recordFailure(null, null, null, null, null, LocalDateTime.now(), VerificationFailureReason.INVALID_MESSAGE);
       return null;
     }
   }
 
-  private void saveFailureHistory(
+  private void recordFailure(
     User user,
     UserVerificationToken token,
     String providedTokenValue,
@@ -352,17 +362,7 @@ public class UserVerificationService {
     LocalDateTime now,
     VerificationFailureReason reason
   ) {
-    userVerificationHistoryRepository.save(
-      UserVerificationHistory.builder()
-        .user(user)
-        .serverName(serverName)
-        .characterName(characterName)
-        .verifiedAt(now)
-        .verificationSuccess(false)
-        .failureReason(reason)
-        .token(token)
-        .build()
-    );
+    userVerificationHistoryService.saveFailureHistory(user, token, serverName, characterName, reason);
 
     String tokenValueForLog = providedTokenValue != null
       ? providedTokenValue
