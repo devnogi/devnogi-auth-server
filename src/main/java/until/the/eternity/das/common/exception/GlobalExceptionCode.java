@@ -23,6 +23,7 @@ public enum GlobalExceptionCode implements ExceptionCode {
   INVALID_EMAIL_FORMAT(HttpStatus.BAD_REQUEST, "유효하지 않은 이메일 형식입니다."),
   INVALID_NICKNAME_FORMAT(HttpStatus.BAD_REQUEST,
     "유효하지 않은 닉네임 형식입니다. 닉네임은 2자 이상 20자 이하이면서 영문, 숫자, 한글만 사용 가능합니다."),
+  INVALID_NICKNAME_COMBINATION(HttpStatus.BAD_REQUEST, "유효하지 않은 닉네임 조합입니다."),
   INVALID_PASSWORD_FORMAT(HttpStatus.BAD_REQUEST,
     "유효하지 않은 비밀번호 형식입니다. 비밀번호는 8자 이상 20자 이하이면서 1개 이상의 알파벳, 숫자, 특수문자로 구성되어야 합니다."),
   USER_NOT_EXISTS(HttpStatus.BAD_REQUEST, "존재하지 않는 회원입니다"),

@@ -1,8 +1,6 @@
 package until.the.eternity.das.user.application;
 
 import jakarta.transaction.Transactional;
-import java.util.Objects;
-import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import until.the.eternity.das.common.aop.ActiveUserRequired;
@@ -15,13 +13,23 @@ import until.the.eternity.das.user.dto.response.UserInfoResponse;
 import until.the.eternity.das.user.dto.response.UserInfoUpdateEvent;
 import until.the.eternity.das.user.entity.User;
 import until.the.eternity.das.user.entity.UserRepository;
+import until.the.eternity.das.user.entity.enums.NicknameAdjective;
+import until.the.eternity.das.user.entity.enums.NicknameWord;
 import until.the.eternity.das.user.entity.enums.Status;
+
+import java.util.Objects;
+import java.util.Random;
+import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
 public class UserService {
 
-  private static final Pattern NICKNAME_PATTERN = Pattern.compile("^[가-힣a-zA-Z0-9]{2,20}$");
+  private static final Pattern NICKNAME_PATTERN = Pattern.compile("^[가-힣a-zA-Z0-9 ]{2,20}$");
+
+  private static final String RANDOM_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  private static final int RANDOM_SUFFIX_LENGTH = 5;
+  private static final Random RANDOM = new Random();
 
   private final UserRepository userRepository;
   private final S3Service s3Service;
@@ -39,6 +47,7 @@ public class UserService {
     ensureIdentityUpdateAllowed(user, wantsNicknameChange, false);
     if (wantsNicknameChange) {
       validateNickname(nextNickname);
+      validateNicknameCombination(nextNickname);
       ensureNicknameAvailable(nextNickname, userId);
     }
 
@@ -90,6 +99,39 @@ public class UserService {
     return false;
   }
 
+  public String generateRandomNickname() {
+    String nickname;
+    int attempt = 0;
+    int maxAttempt = 10;
+
+    do {
+      if (attempt >= maxAttempt) {
+        throw new CustomException(GlobalExceptionCode.SERVER_ERROR);
+      }
+
+      String adjective = NicknameAdjective.random()
+        .getValue();
+
+      String middle = NicknameWord.random()
+        .getValue();
+
+      String suffix = generateRandomSuffix();
+
+      nickname = String.format("%s %s %s", adjective, middle, suffix);
+      attempt++;
+    } while (userRepository.existsByNickname(nickname));
+
+    return nickname;
+  }
+
+  private String generateRandomSuffix() {
+    StringBuilder sb = new StringBuilder(RANDOM_SUFFIX_LENGTH);
+    for (int i = 0; i < RANDOM_SUFFIX_LENGTH; i++) {
+      sb.append(RANDOM_CHARS.charAt(RANDOM.nextInt(RANDOM_CHARS.length())));
+    }
+    return sb.toString();
+  }
+
   private void ensureIdentityUpdateAllowed(User user, boolean wantsNicknameChange, boolean wantsServerNameChange) {
     if (user.isVerified() && (wantsNicknameChange || wantsServerNameChange)) {
       throw new CustomException(GlobalExceptionCode.USER_VERIFICATION_REQUIRED_FOR_IDENTITY_UPDATE);
@@ -104,8 +146,27 @@ public class UserService {
   }
 
   private void validateNickname(String nickname) {
-    if (!NICKNAME_PATTERN.matcher(nickname).matches()) {
+    if (!NICKNAME_PATTERN.matcher(nickname)
+      .matches()) {
       throw new CustomException(GlobalExceptionCode.INVALID_NICKNAME_FORMAT);
+    }
+  }
+
+  private void validateNicknameCombination(String nickname) {
+    String[] parts = nickname.split(" ");
+    if (parts.length != 3) {
+      throw new CustomException(GlobalExceptionCode.INVALID_NICKNAME_COMBINATION);
+    }
+
+    String adjective = parts[0];
+    String middle = parts[1];
+
+    if (!NicknameAdjective.contains(adjective)) {
+      throw new CustomException(GlobalExceptionCode.INVALID_NICKNAME_COMBINATION);
+    }
+
+    if (!NicknameWord.contains(middle)) {
+      throw new CustomException(GlobalExceptionCode.INVALID_NICKNAME_COMBINATION);
     }
   }
 
