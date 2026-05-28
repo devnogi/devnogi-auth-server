@@ -8,6 +8,7 @@ import until.the.eternity.das.auth.application.AuthConverter;
 import until.the.eternity.das.auth.dto.request.SocialSignUpRequest;
 import until.the.eternity.das.auth.dto.response.LoginResultResponse;
 import until.the.eternity.das.auth.dto.response.SignUpResponse;
+import until.the.eternity.das.common.application.KafkaProducerService;
 import until.the.eternity.das.common.application.S3Service;
 import until.the.eternity.das.common.exception.CustomException;
 import until.the.eternity.das.common.exception.GlobalExceptionCode;
@@ -19,6 +20,7 @@ import until.the.eternity.das.role.entity.Role;
 import until.the.eternity.das.role.entity.RoleRepository;
 import until.the.eternity.das.role.entity.enums.Name;
 import until.the.eternity.das.token.application.TokenService;
+import until.the.eternity.das.user.dto.response.UserInfoUpdateEvent;
 import until.the.eternity.das.user.entity.User;
 import until.the.eternity.das.user.entity.UserRepository;
 
@@ -34,6 +36,7 @@ public class SocialAuthService {
   private final S3Service s3Service;
   private final JwtUtil jwtUtil;
   private final TokenService tokenService;
+  private final KafkaProducerService kafkaProducerService;
 
   @Transactional
   public SignUpResponse completeSocialSignup(SocialSignUpRequest request) {
@@ -62,6 +65,14 @@ public class SocialAuthService {
       .linkedAt(java.time.LocalDateTime.now())
       .build();
     oauthUserRepository.save(oauthUser);
+
+    try {
+      UserInfoUpdateEvent kafKaEvent = UserInfoUpdateEvent.of(user);
+
+      kafkaProducerService.sendUserInfoUpdateEvent(kafKaEvent);
+    } catch (Exception e) {
+      throw new CustomException(GlobalExceptionCode.USER_INFO_UPDATE_FAILED);
+    }
 
     return SignUpResponse.of(user.getId());
   }
