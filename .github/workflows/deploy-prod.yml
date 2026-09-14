@@ -1,6 +1,7 @@
 name: Deploy Auth Server to On-Premise 2
 
 on:
+  workflow_dispatch:
   push:
     branches: [ main ]
     paths:
