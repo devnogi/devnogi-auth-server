@@ -62,7 +62,11 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/UserInfoSuccess'}
         '401':
-          description: Missing/invalid/expired access cookie; INVALID_TOKEN, never an OAuth redirect.
+          description: |
+            Missing or malformed access cookie returns INVALID_TOKEN; expired access returns
+            EXPIRED_TOKEN. These handled cases return JSON rather than an OAuth redirect.
+            The existing JWT validator does not normalize signature exceptions; invalid-signature
+            behavior is outside this guaranteed 401 contract and remains a follow-up limitation.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
