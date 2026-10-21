@@ -222,4 +222,19 @@ class AuthServiceTest {
       () -> authService.login(loginRequest, "127.0.0.1", "TestAgent"));
     assertEquals(GlobalExceptionCode.INVALID_PASSWORD, exception.getCode());
   }
+
+  @Test
+  void login_Fail_LockedAccount() {
+    AccountLock accountLock = AccountLock.builder().user(user).userId(user.getId())
+      .failedAttempts(5).lockedUntil(LocalDateTime.now().plusMinutes(5))
+      .updatedAt(LocalDateTime.now()).build();
+    when(userRepository.findByEmail(loginRequest.email())).thenReturn(Optional.of(user));
+    when(accountLockRepository.findById(user.getId())).thenReturn(Optional.of(accountLock));
+
+    CustomException exception = assertThrows(CustomException.class,
+      () -> authService.login(loginRequest, "127.0.0.1", "TestAgent"));
+
+    assertEquals(GlobalExceptionCode.ACCOUNT_LOCKED, exception.getCode());
+    org.mockito.Mockito.verifyNoInteractions(jwtUtil, tokenService, bCryptPasswordEncoder);
+  }
 }

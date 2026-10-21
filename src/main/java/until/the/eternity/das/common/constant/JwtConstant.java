@@ -17,5 +17,8 @@ public class JwtConstant {
   private String issuer;
   private String accessTokenCookieName;
   private String refreshTokenCookieName;
+  private String cookieDomain = ".memonogi.com";
+  private boolean cookieSecure = true;
+  private String cookieSameSite = "None";
 
 }

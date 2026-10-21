@@ -16,7 +16,7 @@ services:
       SERVER_PORT: ${SERVER_PORT:-8091}
       DB_HOST: ${DB_HOST:-host.docker.internal}
       DB_PORT: ${DB_PORT:-3316}
-      DB_SCHEMA: ${DB_SCHEMA:-devnogi}
+      DB_SCHEMA: ${DB_SCHEMA:-auth}
       DB_USER: ${DB_USER:-devnogi}
       DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env.local}
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-host.docker.internal:9102}

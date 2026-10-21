@@ -1,0 +1,182 @@
+openapi: 3.0.3
+info:
+  title: Memonogi email login contract
+  version: 1.0.0
+  description: |
+    Provider is devnogi-auth-server. Consumer is devnogi-react through devnogi-gateway-server.
+    Gateway adds /das; the BFF maps login, refresh, logout to /api/auth/* and info to /api/auth/me.
+    Success DTOs and cookie names are preserved. Unauthenticated protected /api/** requests
+    return JSON 401 instead of OAuth redirects/HTML; browser OAuth entry points still redirect.
+    Removing/renaming fields or changing types requires coordinated consumer approval.
+servers:
+  - url: http://localhost:8091
+    description: Local auth (gateway prefix is /das)
+x-cookie-policy:
+  names: [access_token, refresh_token]
+  httpOnly: true
+  path: /
+  defaults: {domain: .memonogi.com, secure: true, sameSite: None}
+  local: {domain: null, secure: false, sameSite: Lax}
+  configuration: [JWT_COOKIE_DOMAIN, JWT_COOKIE_SECURE, JWT_COOKIE_SAME_SITE]
+  description: |
+    Empty domain omits Domain (host-only). Creation, refresh and deletion share this scope.
+    JWT lifetime settings are milliseconds; Max-Age is lifetime / 1000 seconds.
+    Local explicit access/refresh lifetimes are 3600000/86400000 ms. Legacy omitted-value
+    fallbacks remain 3600/86400 ms. Logout expires both cookies with Max-Age=0.
+paths:
+  /api/auth/login:
+    post:
+      operationId: emailLogin
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/LoginRequest'}
+      responses:
+        '200':
+          description: Authenticated user; two separate Set-Cookie headers contain HttpOnly tokens.
+          headers:
+            Set-Cookie: {$ref: '#/components/headers/TokenCookies'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LoginSuccess'}
+        '400':
+          description: USER_NOT_EXISTS or INVALID_PASSWORD; login failed, no success cookies.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: ACCOUNT_LOCKED; no success cookies.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /api/user/info:
+    get:
+      operationId: currentUser
+      security: [{accessCookie: []}]
+      responses:
+        '200':
+          description: Current active user.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/UserInfoSuccess'}
+        '401':
+          description: Missing/invalid/expired access cookie; INVALID_TOKEN, never an OAuth redirect.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /api/auth/refresh:
+    post:
+      operationId: refreshSession
+      security: [{refreshCookie: []}]
+      description: |
+        Does not require a valid access cookie. BFF forwards the refresh cookie without expired
+        access cookies or Authorization. Revokes the stored refresh entry and issues token cookies.
+      responses:
+        '200':
+          description: Refreshed user session; two separate Set-Cookie headers.
+          headers:
+            Set-Cookie: {$ref: '#/components/headers/TokenCookies'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LoginSuccess'}
+        '400':
+          description: USER_NOT_EXISTS for a missing referenced user.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Missing, malformed, expired, wrong-type or revoked refresh, or disabled user.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /api/auth/logout:
+    post:
+      operationId: logout
+      security: [{accessCookie: []}, {}]
+      description: |
+        For an authenticated principal, revokes all stored refresh tokens. Always expires both
+        browser cookies. An anonymous call clears cookies only and does not establish server revocation.
+        The BFF must not report server revocation when an upstream request fails.
+      responses:
+        '200':
+          description: Cookie deletion completed; server revocation only for an authenticated principal.
+          headers:
+            Set-Cookie: {$ref: '#/components/headers/TokenCookies'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LogoutSuccess'}
+components:
+  securitySchemes:
+    accessCookie: {type: apiKey, in: cookie, name: access_token}
+    refreshCookie: {type: apiKey, in: cookie, name: refresh_token}
+  headers:
+    TokenCookies:
+      description: Two Set-Cookie headers, one per cookie; do not comma-join or expose token values to JavaScript.
+      schema: {type: string}
+  schemas:
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: {type: string, format: email, description: Registered email address.}
+        password: {type: string, format: password, writeOnly: true, description: Existing account password; never logged.}
+    Envelope:
+      type: object
+      required: [success, code, message, data, timestamp]
+      properties:
+        success: {type: boolean}
+        code: {type: string, description: Stable application result code.}
+        message: {type: string, description: Human-readable message; consumers use code for branching.}
+        data: {nullable: true}
+        timestamp: {type: string, format: date-time, description: UTC response timestamp.}
+    LoginUser:
+      type: object
+      required: [userId, nickname, email, profileImageUrl, role]
+      properties:
+        userId: {type: integer, format: int64, description: User identity.}
+        nickname: {type: string, description: Display name.}
+        email: {type: string, format: email}
+        profileImageUrl: {type: string, nullable: true}
+        role: {type: string, enum: [USER, ADMIN, SUPER_ADMIN]}
+    UserInfo:
+      type: object
+      required: [userId, email, nickname, profileImageUrl, serverName, role, verified, createdAt, lastLoginAt]
+      properties:
+        userId: {type: integer, format: int64}
+        email: {type: string, format: email}
+        nickname: {type: string}
+        profileImageUrl: {type: string, nullable: true}
+        serverName: {type: string, nullable: true, description: Null before game-account verification.}
+        role: {type: string, enum: [USER, ADMIN, SUPER_ADMIN]}
+        verified: {type: boolean, description: Game-account verification state.}
+        createdAt: {type: string, description: Existing local datetime serialization (no timezone suffix).}
+        lastLoginAt: {type: string, nullable: true, description: Existing local datetime serialization.}
+    LoginSuccess:
+      allOf:
+        - {$ref: '#/components/schemas/Envelope'}
+        - properties:
+            success: {type: boolean, enum: [true]}
+            code: {type: string, enum: [COMMON_SUCCESS]}
+            data: {$ref: '#/components/schemas/LoginUser'}
+    UserInfoSuccess:
+      allOf:
+        - {$ref: '#/components/schemas/Envelope'}
+        - properties:
+            success: {type: boolean, enum: [true]}
+            code: {type: string, enum: [COMMON_SUCCESS]}
+            data: {$ref: '#/components/schemas/UserInfo'}
+    LogoutSuccess:
+      allOf:
+        - {$ref: '#/components/schemas/Envelope'}
+        - properties:
+            success: {type: boolean, enum: [true]}
+            code: {type: string, enum: [COMMON_SUCCESS]}
+            data: {nullable: true, enum: [null]}
+    ErrorResponse:
+      allOf:
+        - {$ref: '#/components/schemas/Envelope'}
+        - properties:
+            success: {type: boolean, enum: [false]}
+            data: {nullable: true, enum: [null]}

@@ -33,3 +33,21 @@ PR 필수 검사 이름은 verify와 secret-scan이다. 원격 브랜치 보호�
 ## 공동 로컬 인프라 연결
 
 공동 루트 가이드로 devnogi-infra-prod의 mysql/kafka를 먼저 시작하면 memonogi-local 네트워크가 만들어진다. 기존 Compose 뒤에 -f docker-compose-shared.yml을 추가하면 애플리케이션이 공통 Kafka 내부 리스너(devnogi-local-kafka:29092)를 사용한다. auth는 공통 MySQL에도 연결한다. community/batch의 자체 DB 등은 유지되며 community의 별도 kafka는 선택하지 않는다. 명령: `docker compose --env-file .env.local -f docker-compose-local.yml -f docker-compose-shared.yml up --build auth-server`.
+
+## 로컬 이메일 로그인
+
+샘플은 `DB_SCHEMA=auth`를 사용한다. 기존 Flyway migration이 `auth.roles`를 참조하므로 공통 infra의 로컬 bootstrap으로 auth 스키마와 로컬 앱 사용자 권한을 먼저 준비한다. 이미 있는 volume에는 infra의 비파괴 bootstrap 절차를 사용하고 volume을 삭제하거나 기존 migration을 수정하지 않는다. 기존 `.env.local`의 `DB_SCHEMA=devnogi`도 확인한다.
+
+auth와 gateway의 `.env.example`에는 동일한 공개 합성 Base64 키가 있다. 디코딩 후 32바이트 이상이어야 하며 이 키는 로컬 검증 전용이다. `JWT_ACCESS_TOKEN_VALIDITY=3600000`, `JWT_REFRESH_TOKEN_VALIDITY=86400000`은 milliseconds다. 쿠키 Max-Age는 각각 3600/86400 seconds로 변환한다. 환경 변수 생략 시 과거 fallback 숫자 3600/86400 milliseconds는 그대로이므로 로컬 실행에서 명시 값을 빠뜨리지 않는다.
+
+| 환경 변수 | 생략 시 기본값 | HTTP localhost 샘플 |
+| --- | --- | --- |
+| `JWT_COOKIE_DOMAIN` | `.memonogi.com` | 빈 값: Domain 속성을 생략 |
+| `JWT_COOKIE_SECURE` | `true` | `false` |
+| `JWT_COOKIE_SAME_SITE` | `None` | `Lax` |
+
+쿠키 생성·갱신·삭제는 같은 scope를 사용하고 이름, HttpOnly, Path=/는 유지한다. React의 logout 오류 경로도 같은 설정을 사용한다. 로컬 override를 공유/운영 환경에 적용하지 않는다. JWT는 응답 JSON이나 브라우저 JS 저장소로 옮기지 않는다.
+
+합성 계정은 기존 `POST /api/auth/signup`에 이미지 없이 등록한다. 첫 로그인 검증 전에 `account_locks`를 수동 생성하지 않는다. 이메일 로그인 → `/api/user/info` → refresh → 인증된 logout을 확인하고, BFF 경로/응답 필드는 [HTTP 계약](../contracts/openapi.yaml)을 따른다. 비로그인 API는 JSON/401을 반환하고 OAuth 브라우저 경로는 리다이렉트한다. 실제 OAuth, SMTP, S3 자격 증명은 이메일 로그인 검증에 필요하지 않다.
+
+기존 JWT 형식에는 고유 토큰 ID가 없으므로 같은 초에 같은 사용자에게 발급한 토큰 값이 같을 수 있다. 동시/연속 로그인과 refresh 저장 중복 문제는 별도 정책 검토 대상이며 이번 변경은 JWT claims나 잠금 정책을 바꾸지 않는다. 실패 시 HTTP 상태와 오류 코드만 기록하고 비밀번호·Cookie 헤더·전체 JWT를 로그에 남기지 않는다.
