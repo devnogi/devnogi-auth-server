@@ -1,4 +1,16 @@
-# 이벤트 계약
+# 서비스 계약
+
+## 이메일 로그인 HTTP 계약
+
+원본은 [openapi.yaml](openapi.yaml)이다. 제공자는 auth, 소비자는 gateway(`/das` prefix)를 경유하는 React BFF다. 이번 계약은 `POST /api/auth/login`, `GET /api/user/info`, `POST /api/auth/refresh`, `POST /api/auth/logout` 네 경로만 다룬다. BFF의 내 정보 경로는 `/api/auth/me`다.
+
+기존 `{email,password}` 요청과 사용자 DTO·CommonResponse 구조는 유지한다. 보호된 `/api/**`의 미인증 응답은 OAuth HTML/302 대신 JSON/401이며 OAuth 브라우저 진입점은 그대로 리다이렉트한다. 정상 로그인·갱신은 HttpOnly 쿠키 두 개를 각각 Set-Cookie로 반환한다. refresh 요청에는 refresh 쿠키만 필요하며 만료 access 쿠키를 gateway에 함께 전달하지 않는다. 로그인된 사용자의 logout은 서버 refresh 토큰을 폐기하고 같은 범위의 쿠키를 만료시킨다. 익명 logout은 쿠키만 삭제하므로 서버 폐기 성공과 구분한다.
+
+`EmailLoginContractTest`가 실제 컨트롤러, SecurityConfig, 인증 필터, CookieUtil의 응답을 OpenAPI의 required·type·nullable·enum·reference에 대조한다. 전체 OpenAPI validator나 실제 DB 통합 테스트를 대신하지 않는다. `FreshAccountLoginJpaTest`는 정상 가입 후 lock 사전 삽입 없이 실제 JPA 저장·flush와 두 차례 로그인을 확인한다. 로컬 MySQL/Flyway와 브라우저 결과는 공동 루트 실행 기록을 함께 확인한다. 이 테스트들은 표준 `verify`/PR CI에서 실행한다.
+
+필드 제거·이름/타입 변경·새 필수 입력은 소비자와 함께 기획·승인한다. 쿠키 설정을 생략하면 운영 기본값을 유지하고, HTTP localhost override는 auth와 React에서 같이 설정한다. JWT 시간 단위·claims·기존 DB migration은 변경하지 않는다.
+
+## 이벤트 계약
 
 제공자: devnogi-auth-server. 소비자: devnogi-community-server. Kafka topic: `USER_INFO_UPDATE_EVENT`. 스키마 원본은 이 저장소의 `user-info-update.schema.json`이다. 예제는 합성 데이터다.
 

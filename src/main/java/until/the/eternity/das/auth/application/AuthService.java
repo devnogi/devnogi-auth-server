@@ -85,7 +85,6 @@ public class AuthService {
       .orElseGet(() -> {
         AccountLock newLock = AccountLock.builder()
           .user(user)
-          .userId(user.getId())
           .failedAttempts(0)
           .updatedAt(LocalDateTime.now())
           .build();

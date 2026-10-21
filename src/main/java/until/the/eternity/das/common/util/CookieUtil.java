@@ -19,12 +19,7 @@ public class CookieUtil {
    * @param accessToken
    */
   public void createAccessTokenCookie(HttpServletResponse response, String accessToken) {
-    ResponseCookie cookie = ResponseCookie.from(jwtConstant.getAccessTokenCookieName(), accessToken)
-      .httpOnly(true)
-      .secure(true)
-      .sameSite("None")
-      .path("/")
-      .domain(".memonogi.com")
+    ResponseCookie cookie = cookieBuilder(jwtConstant.getAccessTokenCookieName(), accessToken)
       .maxAge(jwtConstant.getAccessTokenValidity() / 1000)
       .build();
 
@@ -38,12 +33,7 @@ public class CookieUtil {
    * @param refreshToken
    */
   public void createRefreshTokenCookie(HttpServletResponse response, String refreshToken) {
-    ResponseCookie cookie = ResponseCookie.from(jwtConstant.getRefreshTokenCookieName(), refreshToken)
-      .httpOnly(true)
-      .secure(true)
-      .sameSite("None")
-      .path("/")
-      .domain(".memonogi.com")
+    ResponseCookie cookie = cookieBuilder(jwtConstant.getRefreshTokenCookieName(), refreshToken)
       .maxAge(jwtConstant.getRefreshTokenValidity() / 1000)
       .build();
 
@@ -51,20 +41,28 @@ public class CookieUtil {
   }
 
   /**
-   * 토큰 쿠키들 삭제(로그아웃 시 사용) -> 그런데 토큰을 삭제하는게 아니라 새로운 토큰을 추가하는게 맞아..?
+   * 발급과 같은 범위의 만료 쿠키를 보내 브라우저 쿠키를 삭제한다.
    *
    * @param response
    */
   public void deleteCookie(String name, HttpServletResponse response) {
-    ResponseCookie cookie = ResponseCookie.from(name, "")
-      .httpOnly(true)
-      .secure(true)
-      .sameSite("None")
-      .path("/")
-      .domain(".memonogi.com")
+    ResponseCookie cookie = cookieBuilder(name, "")
       .maxAge(0)
       .build();
 
     response.addHeader("Set-Cookie", cookie.toString());
+  }
+
+  private ResponseCookie.ResponseCookieBuilder cookieBuilder(String name, String value) {
+    ResponseCookie.ResponseCookieBuilder builder = ResponseCookie.from(name, value)
+      .httpOnly(true)
+      .secure(jwtConstant.isCookieSecure())
+      .sameSite(jwtConstant.getCookieSameSite())
+      .path("/");
+    String domain = jwtConstant.getCookieDomain();
+    if (domain != null && !domain.isBlank()) {
+      builder.domain(domain);
+    }
+    return builder;
   }
 }
