@@ -156,6 +156,7 @@ class AuthControllerTest {
       .id(1L)
       .email("test@test.com")
       .nickname("testuser")
+      .role(Role.builder().id(1L).name(Name.USER).build())
       .build();
 
     // 3. AuthService가 반환할 가짜 결과 객체 생성 (토큰과 유저 정보 포함)

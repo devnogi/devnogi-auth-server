@@ -1,0 +1,18 @@
+
+# Keep host-only state and credential files out of every build context.
+**/.git
+**/.env
+**/.env.*
+**/.local
+**/*.pem
+**/*.key
+**/*.p12
+**/*.jks
+**/node_modules
+.gradle
+build
+logs
+*.log
+.idea
+.vscode
+src/main/resources/application.yml

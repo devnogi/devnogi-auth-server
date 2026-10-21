@@ -2,21 +2,18 @@ name: Deploy Auth Server to On-Premise 2
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ main ]
-    paths:
-      - 'src/**'
-      - 'docker-compose-auth-prod.yml'
-      - '.github/workflows/deploy-prod.yml'
-  pull_request:
-    branches: [ dev ] # for test
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
+permissions:
+  contents: read
+
 jobs:
   build-and-push:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    environment: production
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -35,7 +32,7 @@ jobs:
       - name: Build with Gradle
         run: |
           chmod +x gradlew
-          ./gradlew clean build -x test --no-daemon
+          ./gradlew verify --no-daemon
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -52,6 +49,8 @@ jobs:
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/auth-server:latest
 
   deploy:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    environment: production
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:

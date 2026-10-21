@@ -15,6 +15,7 @@ import until.the.eternity.das.auth.dto.request.SignUpRequest;
 import until.the.eternity.das.auth.dto.response.LoginResultResponse;
 import until.the.eternity.das.auth.dto.response.SignUpResponse;
 import until.the.eternity.das.common.application.S3Service;
+import until.the.eternity.das.common.application.KafkaProducerService;
 import until.the.eternity.das.common.exception.CustomException;
 import until.the.eternity.das.common.exception.GlobalExceptionCode;
 import until.the.eternity.das.common.util.JwtUtil;
@@ -57,6 +58,8 @@ class AuthServiceTest {
   private TokenService tokenService;
   @Mock
   private S3Service s3Service;
+  @Mock
+  private KafkaProducerService kafkaProducerService;
   @Mock
   private AccountLockRepository accountLockRepository;
   @Mock

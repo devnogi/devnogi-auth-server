@@ -1,0 +1,13 @@
+# Merge after docker-compose-local.yml (community: .yaml).
+services:
+  auth-server:
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: devnogi-local-kafka:29092
+      DB_HOST: devnogi-local-mysql
+      DB_PORT: 3306
+    networks:
+      - memonogi-local
+networks:
+  memonogi-local:
+    external: true
+    name: memonogi-local

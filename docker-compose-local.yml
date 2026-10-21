@@ -10,16 +10,16 @@ services:
     ports:
       - "${SERVER_PORT:-8091}:${SERVER_PORT:-8091}"
     env_file:
-      - .env
+      - .env.local
     environment:
       SPRING_PROFILES_ACTIVE: default
       SERVER_PORT: ${SERVER_PORT:-8091}
-      DB_IP: ${DB_IP:-host.docker.internal}
+      DB_HOST: ${DB_HOST:-host.docker.internal}
       DB_PORT: ${DB_PORT:-3316}
       DB_SCHEMA: ${DB_SCHEMA:-devnogi}
       DB_USER: ${DB_USER:-devnogi}
-      DB_PASSWORD: ${DB_PASSWORD:-devnogi0529!}
-      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-119.194.235.11:9102}
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env.local}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-host.docker.internal:9102}
       KAFKA_TOPIC_USER_VERIFICATION_VERIFY: ${KAFKA_TOPIC_USER_VERIFICATION_VERIFY:-USER_VERIFICATION_VERIFY_EVENT}
       KAFKA_CONSUMER_GROUP_ID: ${KAFKA_CONSUMER_GROUP_ID:-devnogi-auth-user-verification-consumer-local}
       JAVA_OPTS: -Xms256m -Xmx512m
