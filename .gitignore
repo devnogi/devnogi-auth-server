@@ -46,3 +46,8 @@ application.yml
 .env.local
 .env.dev
 .env.prod
+# Local credentials; share only synthetic examples
+.env*
+!.env.example
+!.env.sample
+!.env.local.sample

@@ -5,11 +5,14 @@ FROM gradle:8.7-jdk21 AS builder
 WORKDIR /app
 COPY . .
 
+# Build from the tracked, environment-driven template, never a host credential file.
+COPY src/main/resources/application-sample.yml src/main/resources/application.yml
+
 # gradlew 파일에 실행 권한을 부여합니다.
 RUN chmod +x gradlew
 
-# Gradle 데몬을 사용하지 않고 빌드를 실행합니다.
-RUN ./gradlew clean build -x test --no-daemon
+# Package only the executable JAR; tests run separately through verify.
+RUN ./gradlew clean bootJar --no-daemon
 
 # 2. Final Image Stage
 FROM eclipse-temurin:21-jre
