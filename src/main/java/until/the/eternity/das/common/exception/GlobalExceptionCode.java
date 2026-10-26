@@ -20,6 +20,7 @@ public enum GlobalExceptionCode implements ExceptionCode {
   // AUTH
   EMAIL_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 가입되어 있는 이메일입니다."),
   NICKNAME_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 존재하는 닉네임입니다."),
+  NICKNAME_TICKET_REQUIRED(HttpStatus.BAD_REQUEST, "페이지를 새로고침해 최신 화면에서 랜덤 닉네임을 다시 발급받아주세요."),
   INVALID_NICKNAME_TICKET(HttpStatus.BAD_REQUEST, "새 랜덤 닉네임을 발급받아 다시 시도해주세요."),
   EXPIRED_NICKNAME_TICKET(HttpStatus.BAD_REQUEST, "닉네임 발급 시간이 만료되었습니다. 다시 발급받아주세요."),
   NICKNAME_GENERATION_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "닉네임을 발급할 수 없습니다. 잠시 후 다시 시도해주세요."),

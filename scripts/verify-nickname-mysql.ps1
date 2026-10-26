@@ -41,6 +41,9 @@ try {
 
   & "$PSScriptRoot/../gradlew.bat" test --tests '*NicknameMigrationMySqlTest' --rerun-tasks --no-daemon
   if ($LASTEXITCODE -ne 0) { throw 'The MySQL migration test failed.' }
+
+  & "$PSScriptRoot/../gradlew.bat" test --tests '*NicknameConcurrencyMySqlTest' --rerun-tasks --no-daemon
+  if ($LASTEXITCODE -ne 0) { throw 'The MySQL concurrency test failed.' }
 } finally {
   Remove-Item Env:NICKNAME_MYSQL_URL, Env:NICKNAME_MYSQL_USER, Env:NICKNAME_MYSQL_PASSWORD, Env:NICKNAME_MYSQL_REQUIRED -ErrorAction SilentlyContinue
   if ($created) { docker rm --force $containerName | Out-Null }

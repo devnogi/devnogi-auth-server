@@ -36,7 +36,7 @@ class NicknameCandidateServiceTest {
     NicknameCandidateService service = serviceAt(NOW, true);
     NicknameCandidateResponse candidate = service.issue("강인한 인간 ABC12");
 
-    assertEquals(GlobalExceptionCode.INVALID_NICKNAME_TICKET,
+    assertEquals(GlobalExceptionCode.NICKNAME_TICKET_REQUIRED,
       assertThrows(CustomException.class, () -> service.validateForChange(candidate.nickname(), null)).getCode());
     assertEquals(GlobalExceptionCode.INVALID_NICKNAME_TICKET,
       assertThrows(CustomException.class,

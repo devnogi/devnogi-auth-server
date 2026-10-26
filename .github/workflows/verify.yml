@@ -40,6 +40,13 @@ jobs:
           NICKNAME_MYSQL_USER: root
           NICKNAME_MYSQL_PASSWORD: synthetic-nickname-test-only
           NICKNAME_MYSQL_REQUIRED: 'true'
+      - name: Verify nickname and game identity concurrency on MySQL 8.0.42
+        run: ./gradlew test --tests '*NicknameConcurrencyMySqlTest' --rerun-tasks --no-daemon
+        env:
+          NICKNAME_MYSQL_URL: jdbc:mysql://127.0.0.1:3306/auth?useSSL=false&allowPublicKeyRetrieval=true
+          NICKNAME_MYSQL_USER: root
+          NICKNAME_MYSQL_PASSWORD: synthetic-nickname-test-only
+          NICKNAME_MYSQL_REQUIRED: 'true'
       - name: Test reports
         if: always()
         uses: actions/upload-artifact@v4

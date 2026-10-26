@@ -16,6 +16,7 @@ import until.the.eternity.das.auth.application.AuthService;
 import until.the.eternity.das.auth.application.NicknameCandidateService;
 import until.the.eternity.das.auth.dto.request.LoginRequest;
 import until.the.eternity.das.auth.dto.request.SignUpRequest;
+import until.the.eternity.das.auth.dto.request.SocialSignUpRequest;
 import until.the.eternity.das.auth.dto.response.LoginResultResponse;
 import until.the.eternity.das.auth.dto.response.SignUpResponse;
 import until.the.eternity.das.auth.dto.response.NicknameCandidateResponse;
@@ -147,6 +148,35 @@ class AuthControllerTest {
         .param("password", "password123!")
         .param("nickname", "testuser"))
       .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  void oldSignupPageWithoutTicketReceivesRefreshGuidance() throws Exception {
+    when(authService.signUpUser(any(SignUpRequest.class)))
+      .thenThrow(new CustomException(GlobalExceptionCode.NICKNAME_TICKET_REQUIRED));
+
+    mockMvc.perform(multipart("/api/auth/signup")
+        .param("email", "old-page@example.invalid")
+        .param("password", "LocalPass123!")
+        .param("nickname", "manualName"))
+      .andExpect(status().isBadRequest())
+      .andExpect(jsonPath("$.code").value("NICKNAME_TICKET_REQUIRED"))
+      .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("새로고침")));
+  }
+
+  @Test
+  void oldSocialSignupPageWithoutTicketReceivesRefreshGuidance() throws Exception {
+    when(socialAuthService.completeSocialSignup(any(SocialSignUpRequest.class)))
+      .thenThrow(new CustomException(GlobalExceptionCode.NICKNAME_TICKET_REQUIRED));
+
+    mockMvc.perform(multipart("/api/auth/signup/social")
+        .param("provider", "google")
+        .param("providerUserId", "synthetic-id")
+        .param("email", "old-social@example.invalid")
+        .param("nickname", "manualName"))
+      .andExpect(status().isBadRequest())
+      .andExpect(jsonPath("$.code").value("NICKNAME_TICKET_REQUIRED"))
+      .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("새로고침")));
   }
 
   @Test

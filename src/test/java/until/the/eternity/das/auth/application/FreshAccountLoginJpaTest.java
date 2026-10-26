@@ -12,6 +12,8 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import until.the.eternity.das.auth.dto.request.LoginRequest;
 import until.the.eternity.das.auth.dto.request.SignUpRequest;
+import until.the.eternity.das.common.exception.CustomException;
+import until.the.eternity.das.common.exception.GlobalExceptionCode;
 import until.the.eternity.das.common.application.KafkaProducerService;
 import until.the.eternity.das.common.application.S3Service;
 import until.the.eternity.das.common.constant.JwtConstant;
@@ -26,6 +28,8 @@ import until.the.eternity.das.token.entity.RefreshTokenRepository;
 import until.the.eternity.das.user.entity.UserRepository;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @DataJpaTest(properties = {
   "jwt.secret-key=bWVtb25vZ2ktbG9jYWwtb25seS1zeW50aGV0aWMta2V5LTIwMjY=",
@@ -90,5 +94,17 @@ class FreshAccountLoginJpaTest {
     assertThat(accountLocks.count()).isEqualTo(1);
     assertThat(loginHistory.count()).isEqualTo(2);
     assertThat(refreshTokens.count()).isEqualTo(2);
+  }
+
+  @Test
+  void oldSignupRequestWithoutTicketCannotCreateAccount() {
+    entityManager.persist(Role.builder().name(Name.USER).build());
+
+    CustomException error = assertThrows(CustomException.class,
+      () -> authService.signUpUser(new SignUpRequest(
+        "old-page@example.test", "LocalPass123!", "강인한 인간 ABC12", null, null)));
+
+    assertEquals(GlobalExceptionCode.NICKNAME_TICKET_REQUIRED, error.getCode());
+    assertThat(users.findByEmail("old-page@example.test")).isEmpty();
   }
 }

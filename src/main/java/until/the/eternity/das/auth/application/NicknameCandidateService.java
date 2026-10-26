@@ -88,7 +88,10 @@ public class NicknameCandidateService {
     if (!enforceIssuedCandidates) {
       return;
     }
-    if (nickname == null || nickname.isBlank() || ticket == null || ticket.isBlank()) {
+    if (ticket == null || ticket.isBlank()) {
+      throw new CustomException(GlobalExceptionCode.NICKNAME_TICKET_REQUIRED);
+    }
+    if (nickname == null || nickname.isBlank()) {
       throw new CustomException(GlobalExceptionCode.INVALID_NICKNAME_TICKET);
     }
     try {
