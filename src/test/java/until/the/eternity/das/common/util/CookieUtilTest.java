@@ -37,6 +37,15 @@ class CookieUtilTest {
     assertLifetimes(response);
   }
 
+  @Test
+  void oauthBindingCookieUsesSameBrowserScopeAndShortLifetime() {
+    MockHttpServletResponse response = new MockHttpServletResponse();
+    new CookieUtil(settings()).createOAuthBindingCookie(response, "synthetic-binding");
+    assertThat(response.getHeader("Set-Cookie"))
+      .startsWith("oauth_flow_binding=synthetic-binding")
+      .contains("Max-Age=600", "Domain=.memonogi.com", "Secure", "HttpOnly", "SameSite=None");
+  }
+
   private MockHttpServletResponse issueAndDelete(CookieUtil cookies) {
     MockHttpServletResponse response = new MockHttpServletResponse();
     cookies.createAccessTokenCookie(response, "synthetic-access");

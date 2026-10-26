@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
+import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 import until.the.eternity.das.common.exception.CustomException;
@@ -32,7 +33,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
     switch (provider) {
       case "google":
-        providerUserId = (String) attributes.get("sub");
+        providerUserId = validatedProviderId(provider, attributes.get("sub"));
         email = (String) attributes.get("email");
         break;
       case "naver":
@@ -44,11 +45,11 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
           throw new CustomException(GlobalExceptionCode.NOT_SUPPORTED_PROVIDER);
         }
         Map<String, Object> response = MapUtil.cast(responseObj, Map.class);
-        providerUserId = (String) response.get("id");
+        providerUserId = validatedProviderId(provider, response.get("id"));
         email = (String) response.get("email");
         break;
       case "kakao":
-        providerUserId = String.valueOf(attributes.get("id"));
+        providerUserId = validatedProviderId(provider, attributes.get("id"));
         Object kakaoAccountObj = attributes.get("kakao_account");
         if (!(kakaoAccountObj instanceof Map)) {
           log.error("Expected 'kakao_account' attribute to be a Map for provider 'kakao', but got: {}",
@@ -63,8 +64,20 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         throw new CustomException(GlobalExceptionCode.NOT_SUPPORTED_PROVIDER);
     }
 
-    log.debug("소셜 로그인 성공 - provider={}, providerUserId={}, email={}", provider, providerUserId, email);
-
     return new OauthUserDTO(providerUserId, email, provider.toUpperCase());
+  }
+
+  static String validatedProviderId(String provider, Object value) {
+    if ("kakao".equals(provider)) {
+      if (value instanceof Long id && id > 0) {
+        return id.toString();
+      }
+      if (value instanceof Integer id && id > 0) {
+        return id.toString();
+      }
+    } else if (value instanceof String id && !id.isBlank() && !"null".equalsIgnoreCase(id.trim())) {
+      return id;
+    }
+    throw new OAuth2AuthenticationException(new OAuth2Error("invalid_user_info_response"));
   }
 }

@@ -35,6 +35,8 @@ import until.the.eternity.das.common.response.CommonResponse;
 import until.the.eternity.das.common.util.CookieUtil;
 import until.the.eternity.das.common.util.JwtUtil;
 import until.the.eternity.das.oauth.service.SocialAuthService;
+import until.the.eternity.das.oauth.service.OAuthExchangeService;
+import jakarta.servlet.http.Cookie;
 import until.the.eternity.das.token.application.TokenService;
 import until.the.eternity.das.user.application.UserService;
 
@@ -53,6 +55,23 @@ public class AuthController {
   private final JwtConstant jwtConstant;
   private final UserService userService;
   private final NicknameCandidateService nicknameCandidateService;
+  private final OAuthExchangeService oauthExchangeService;
+
+  public record OAuthExchangeRequest(String code) {}
+
+  @PostMapping("/oauth/exchange")
+  public ResponseEntity<CommonResponse<OAuthExchangeService.ExchangeResult>> exchangeOAuthCode(
+    @RequestBody OAuthExchangeRequest request, HttpServletRequest servletRequest,
+    HttpServletResponse servletResponse
+  ) {
+    oauthNoStore(servletResponse);
+    OAuthExchangeService.ExchangeResult result = oauthExchangeService.exchange(
+      request.code(), oauthBinding(servletRequest));
+    return ResponseEntity.ok()
+      .cacheControl(CacheControl.noStore())
+      .header("Referrer-Policy", "no-referrer")
+      .body(CommonResponse.success(result));
+  }
 
   /**
    * 회원 가입 API
@@ -153,9 +172,11 @@ public class AuthController {
     content = @Content(schema = @Schema(implementation = SignUpResponse.class)))
   public ResponseEntity<CommonResponse<SignUpResponse>> completeSocialSignup(
     @ModelAttribute SocialSignUpRequest request,
+    HttpServletRequest servletRequest,
     HttpServletResponse response
   ) {
-    SignUpResponse result = socialAuthService.completeSocialSignup(request);
+    oauthNoStore(response);
+    SignUpResponse result = socialAuthService.completeSocialSignup(request, oauthBinding(servletRequest));
 
     LoginResultResponse loginResultResponse = socialAuthService.jwtForSocialSignUp(result.id());
 
@@ -164,6 +185,23 @@ public class AuthController {
 
     return ResponseEntity.status(CREATED)
       .body(CommonResponse.success(result));
+  }
+
+  private String oauthBinding(HttpServletRequest request) {
+    if (request.getCookies() == null) {
+      return null;
+    }
+    for (Cookie cookie : request.getCookies()) {
+      if (OAuthExchangeService.BINDING_COOKIE.equals(cookie.getName())) {
+        return cookie.getValue();
+      }
+    }
+    return null;
+  }
+
+  private void oauthNoStore(HttpServletResponse response) {
+    response.setHeader("Cache-Control", "no-store");
+    response.setHeader("Referrer-Policy", "no-referrer");
   }
 
   /**
