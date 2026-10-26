@@ -4,7 +4,9 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.dao.DataIntegrityViolationException;
 import until.the.eternity.das.auth.application.AuthConverter;
+import until.the.eternity.das.auth.application.NicknameCandidateService;
 import until.the.eternity.das.auth.dto.request.SocialSignUpRequest;
 import until.the.eternity.das.auth.dto.response.LoginResultResponse;
 import until.the.eternity.das.auth.dto.response.SignUpResponse;
@@ -37,11 +39,17 @@ public class SocialAuthService {
   private final JwtUtil jwtUtil;
   private final TokenService tokenService;
   private final KafkaProducerService kafkaProducerService;
+  private final NicknameCandidateService nicknameCandidateService;
 
   @Transactional
   public SignUpResponse completeSocialSignup(SocialSignUpRequest request) {
+    nicknameCandidateService.validateForChange(request.nickname(), request.nicknameTicket());
     if (userRepository.existsByEmail(request.email())) {
       throw new CustomException(GlobalExceptionCode.EMAIL_ALREADY_EXISTS);
+    }
+
+    if (userRepository.existsByNickname(request.nickname())) {
+      throw new CustomException(GlobalExceptionCode.NICKNAME_ALREADY_EXISTS);
     }
 
     OauthUserDTO dto = new OauthUserDTO(request.providerUserId(), request.email(), request.provider());
@@ -56,7 +64,11 @@ public class SocialAuthService {
     }
 
     User user = authConverter.fromOauthUserDTOToUser(dto, request.nickname(), userRole, profileImageUrl);
-    userRepository.save(user);
+    try {
+      userRepository.saveAndFlush(user);
+    } catch (DataIntegrityViolationException e) {
+      throw new CustomException(GlobalExceptionCode.NICKNAME_ALREADY_EXISTS);
+    }
 
     OauthUser oauthUser = OauthUser.builder()
       .user(user)

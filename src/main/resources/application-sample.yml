@@ -158,6 +158,10 @@ decorator:
       enable-logging: false
 
 app:
+  nickname:
+    ticket-secret: ${NICKNAME_TICKET_SECRET}
+    ticket-validity-seconds: ${NICKNAME_TICKET_VALIDITY_SECONDS:600}
+    enforce-issued-candidates: ${NICKNAME_ENFORCE_ISSUED_CANDIDATES:true}
   verification:
     prefix: ${USER_VERIFICATION_PREFIX:메모노기_}
     length: ${USER_VERIFICATION_LENGTH:20}

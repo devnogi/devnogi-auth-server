@@ -19,6 +19,9 @@ public record SocialSignUpRequest(
   @NotBlank(message = "닉네임을 입력해주세요.")
   String nickname,
 
+  @Schema(description = "랜덤 닉네임 후보 발급 티켓")
+  String nicknameTicket,
+
   MultipartFile file
 ) {
 }

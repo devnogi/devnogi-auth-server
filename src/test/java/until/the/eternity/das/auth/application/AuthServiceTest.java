@@ -36,6 +36,9 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -61,6 +64,8 @@ class AuthServiceTest {
   @Mock
   private KafkaProducerService kafkaProducerService;
   @Mock
+  private NicknameCandidateService nicknameCandidateService;
+  @Mock
   private AccountLockRepository accountLockRepository;
   @Mock
   private LoginHistoryRepository loginHistoryRepository;
@@ -82,7 +87,7 @@ class AuthServiceTest {
     );
 
     // SignUpRequest에 mockFile 추가, 비밀번호 형식 준수
-    signUpRequest = new SignUpRequest("test@test.com", "password123!", "testuser", mockFile);
+    signUpRequest = new SignUpRequest("test@test.com", "password123!", "강인한 인간 ABC12", "issued-ticket", mockFile);
     loginRequest = new LoginRequest("test@test.com", "password123!");
     userRole = Role.builder()
       .id(1L)
@@ -118,7 +123,7 @@ class AuthServiceTest {
       authConverter.fromUserSignUpRequestToUser(signUpRequest, encodedPassword, userRole, profileImageUrl)).thenReturn(
       user);
     // User 저장 Mocking
-    when(userRepository.save(any(User.class))).thenReturn(user);
+    when(userRepository.saveAndFlush(any(User.class))).thenReturn(user);
     // User -> SignUpResponse 변환 Mocking
     when(authConverter.fromUserToUserSignUpResponse(any(User.class))).thenReturn(
       SignUpResponse.builder()
@@ -132,6 +137,7 @@ class AuthServiceTest {
     // then
     assertNotNull(response);
     assertEquals(user.getId(), response.id());
+    verify(nicknameCandidateService).validateForChange(signUpRequest.nickname(), signUpRequest.nicknameTicket());
   }
 
   @Test
@@ -158,6 +164,21 @@ class AuthServiceTest {
     // when & then
     CustomException exception = assertThrows(CustomException.class, () -> authService.signUpUser(signUpRequest));
     assertEquals(GlobalExceptionCode.NICKNAME_ALREADY_EXISTS, exception.getCode());
+  }
+
+  @Test
+  void signupAndAdminSignupRejectInvalidTicketBeforePersistenceOrKafka() {
+    doThrow(new CustomException(GlobalExceptionCode.INVALID_NICKNAME_TICKET))
+      .when(nicknameCandidateService).validateForChange(signUpRequest.nickname(), signUpRequest.nicknameTicket());
+    when(roleRepository.findByName(Name.USER)).thenReturn(Optional.of(userRole));
+    Role adminRole = Role.builder().id(2L).name(Name.ADMIN).build();
+    when(roleRepository.findByName(Name.ADMIN)).thenReturn(Optional.of(adminRole));
+
+    assertEquals(GlobalExceptionCode.INVALID_NICKNAME_TICKET,
+      assertThrows(CustomException.class, () -> authService.signUpUser(signUpRequest)).getCode());
+    assertEquals(GlobalExceptionCode.INVALID_NICKNAME_TICKET,
+      assertThrows(CustomException.class, () -> authService.signUpAdmin(signUpRequest)).getCode());
+    verifyNoInteractions(s3Service, kafkaProducerService, authConverter);
   }
 
 

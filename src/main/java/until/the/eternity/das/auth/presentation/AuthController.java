@@ -9,6 +9,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.CacheControl;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,12 +20,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import until.the.eternity.das.auth.application.AuthService;
+import until.the.eternity.das.auth.application.NicknameCandidateService;
 import until.the.eternity.das.auth.dto.request.LoginRequest;
 import until.the.eternity.das.auth.dto.request.SignUpRequest;
 import until.the.eternity.das.auth.dto.request.SocialSignUpRequest;
 import until.the.eternity.das.auth.dto.response.LoginResponse;
 import until.the.eternity.das.auth.dto.response.LoginResultResponse;
 import until.the.eternity.das.auth.dto.response.SignUpResponse;
+import until.the.eternity.das.auth.dto.response.NicknameCandidateResponse;
 import until.the.eternity.das.common.constant.JwtConstant;
 import until.the.eternity.das.common.exception.CustomException;
 import until.the.eternity.das.common.exception.GlobalExceptionCode;
@@ -49,6 +52,7 @@ public class AuthController {
   private final JwtUtil jwtUtil;
   private final JwtConstant jwtConstant;
   private final UserService userService;
+  private final NicknameCandidateService nicknameCandidateService;
 
   /**
    * 회원 가입 API
@@ -270,5 +274,14 @@ public class AuthController {
     String nickname = userService.generateRandomNickname();
 
     return ResponseEntity.ok(CommonResponse.success(nickname));
+  }
+
+  @GetMapping("/random-nickname/candidate")
+  @Operation(summary = "서명된 랜덤 닉네임 후보 발급 API")
+  public ResponseEntity<CommonResponse<NicknameCandidateResponse>> getRandomNicknameCandidate() {
+    NicknameCandidateResponse candidate = nicknameCandidateService.issue(userService.generateRandomNickname());
+    return ResponseEntity.ok()
+      .cacheControl(CacheControl.noStore())
+      .body(CommonResponse.success(candidate));
   }
 }
