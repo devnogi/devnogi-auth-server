@@ -1,6 +1,6 @@
 services:
   auth-server:
-    image: ghcr.io/${IMAGE_NAME}/auth-server:latest
+    image: ghcr.io/${IMAGE_NAME}/auth-server:${AUTH_IMAGE_TAG:-latest}
     container_name: auth-server
     ports:
       - "${SERVER_PORT}:${SERVER_PORT}"

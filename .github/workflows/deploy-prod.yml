@@ -6,13 +6,35 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  AUTH_IMAGE_TAG: ${{ github.ref_name == 'dev' && format('dev-{0}', github.sha) || 'latest' }}
 
 permissions:
   contents: read
 
 jobs:
+  # 빠른 개선을 위한 dev 브랜치 운영 배포 허용: 2026-12-31까지 (KST).
+  preflight:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check branch and temporary dev deployment window
+        shell: bash
+        run: |
+          case "$GITHUB_REF" in
+            refs/heads/main) ;;
+            refs/heads/dev)
+              cutoff=$(date -u -d '2026-12-31T15:00:00Z' +%s)
+              if [ "$(date -u +%s)" -ge "$cutoff" ]; then
+                echo 'dev production deployment expired at 2027-01-01 00:00 KST' >&2
+                exit 1
+              fi
+              ;;
+            *) echo "Production deployment is not allowed from $GITHUB_REF" >&2; exit 1 ;;
+          esac
+
   build-and-push:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')
+    needs: preflight
     environment: production
     runs-on: ubuntu-latest
     permissions:
@@ -20,6 +42,16 @@ jobs:
       packages: write
 
     steps:
+      - name: Recheck temporary dev deployment window after approval
+        if: github.ref == 'refs/heads/dev'
+        shell: bash
+        run: |
+          cutoff=$(date -u -d '2026-12-31T15:00:00Z' +%s)
+          if [ "$(date -u +%s)" -ge "$cutoff" ]; then
+            echo 'dev production deployment expired at 2027-01-01 00:00 KST' >&2
+            exit 1
+          fi
+
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -41,21 +73,51 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Recheck dev window before publishing image
+        if: github.ref == 'refs/heads/dev'
+        shell: bash
+        run: |
+          cutoff=$(date -u -d '2026-12-31T15:00:00Z' +%s)
+          if [ "$(date -u +%s)" -ge "$cutoff" ]; then
+            echo 'dev production deployment expired before image publication' >&2
+            exit 1
+          fi
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/auth-server:latest
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/auth-server:${{ env.AUTH_IMAGE_TAG }}
 
   deploy:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')
     environment: production
-    needs: build-and-push
+    needs: [preflight, build-and-push]
     runs-on: ubuntu-latest
     steps:
+      - name: Recheck temporary dev deployment window after approval
+        if: github.ref == 'refs/heads/dev'
+        shell: bash
+        run: |
+          cutoff=$(date -u -d '2026-12-31T15:00:00Z' +%s)
+          if [ "$(date -u +%s)" -ge "$cutoff" ]; then
+            echo 'dev production deployment expired at 2027-01-01 00:00 KST' >&2
+            exit 1
+          fi
+
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Recheck dev window before server changes
+        if: github.ref == 'refs/heads/dev'
+        shell: bash
+        run: |
+          cutoff=$(date -u -d '2026-12-31T15:00:00Z' +%s)
+          if [ "$(date -u +%s)" -ge "$cutoff" ]; then
+            echo 'dev production deployment expired before server changes' >&2
+            exit 1
+          fi
 
       - name: Copy docker-compose to Server 2
         uses: appleboy/scp-action@master
@@ -75,6 +137,11 @@ jobs:
           key: ${{ secrets.PROD2_PEM_KEY }}
           port: ${{ secrets.PROD2_SSH_PORT }}
           script: |
+            set -e
+            if [ '${{ github.ref_name }}' = 'dev' ] && [ "$(date -u +%s)" -ge "$(date -u -d '2026-12-31T15:00:00Z' +%s)" ]; then
+              echo 'dev production deployment expired before Compose update' >&2
+              exit 1
+            fi
             mkdir -p /opt/auth
             cd /opt/auth
 
@@ -85,6 +152,9 @@ jobs:
             EOF
             
             export IMAGE_NAME=${{ github.repository }}
+            export AUTH_IMAGE_TAG='${{ env.AUTH_IMAGE_TAG }}'
+            resolved_image=$(docker compose -f docker-compose-auth-prod.yml --env-file .env.prod config --images)
+            [ "$resolved_image" = "ghcr.io/${IMAGE_NAME}/auth-server:${AUTH_IMAGE_TAG}" ]
             docker compose -f docker-compose-auth-prod.yml --env-file .env.prod pull
             docker compose -f docker-compose-auth-prod.yml --env-file .env.prod up -d
 

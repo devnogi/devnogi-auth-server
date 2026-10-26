@@ -26,7 +26,7 @@ docker compose --env-file .env.local -f docker-compose-local.yml up --build auth
 
 ## CI와 배포
 
-PR 필수 검사 이름은 verify와 secret-scan이다. 원격 브랜치 보호에서 두 검사와 사람 리뷰를 필수로 지정해야 강제된다. yaml 파일만 추가해도 보호가 활성화되는 것은 아니다. 이미지 게시/운영 배포는 workflow_dispatch로 분리했고 운영은 main/production, 개발은 dev/development로 제한한다. GitHub Environment에 승인자를 별도로 설정해야 실제 사람 승인 게이트가 생긴다. push/PR 생성만으로 배포하지 않는다.
+PR 필수 검사 이름은 verify와 secret-scan이다. 원격 브랜치 보호에서 두 검사와 사람 리뷰를 필수로 지정해야 강제된다. yaml 파일만 추가해도 보호가 활성화되는 것은 아니다. 이미지 게시/운영 배포는 workflow_dispatch로 분리했고 기본 운영 경로는 main/production, 개발 환경은 dev/development다. 빠른 개선을 위해 2026-12-31 23:59:59 KST까지 승인받은 사람이 dev에서 production으로 수동 배포할 수 있다. 이때 이미지는 실행한 dev 커밋의 `dev-<SHA>` 태그를 사용하며 `latest`는 갱신하지 않는다. 2027-01-01 00:00 KST부터 workflow의 시각 검사가 dev 운영 배포를 차단한다. GitHub production Environment의 허용 브랜치에 dev를 추가하고 기존 승인자를 유지해야 실제 실행된다. 이 설정 변경, PR 병합 및 운영 배포는 각각 별도 사람 승인 대상이며 push/PR 생성만으로 배포하지 않는다.
 
 각 서비스의 Compose는 개별 개발 환경이다. 전체 MSA가 자동 연결된다는 뜻은 아니다. Kafka는 bootstrap 주소뿐 아니라 브로커 advertised.listeners가 각 애플리케이션 컨테이너에서 접근 가능한 주소여야 한다. 호스트용 localhost 광고 주소를 컨테이너에 그대로 사용하지 않는다. 통합 환경에서는 공통 네트워크의 내부 리스너를 사용하거나 개발 호스트 주소로 광고하도록 별도 구성한다.
 
