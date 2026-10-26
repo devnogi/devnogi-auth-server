@@ -53,7 +53,10 @@ public enum GlobalExceptionCode implements ExceptionCode {
   USER_VERIFICATION_INVALID(HttpStatus.BAD_REQUEST, "유효하지 않거나 만료된 인증 코드입니다."),
 
   // OAUTH
-  NOT_SUPPORTED_PROVIDER(HttpStatus.BAD_REQUEST, "지원하지 않는 소셜로그인입니다");
+  NOT_SUPPORTED_PROVIDER(HttpStatus.BAD_REQUEST, "지원하지 않는 소셜로그인입니다"),
+  OAUTH_EXCHANGE_INVALID(HttpStatus.BAD_REQUEST, "소셜 로그인 인증 시간이 만료되었습니다. 다시 로그인해주세요."),
+  OAUTH_SIGNUP_PROOF_REQUIRED(HttpStatus.BAD_REQUEST, "페이지를 새로고침하고 소셜 로그인을 다시 진행해주세요."),
+  OAUTH_SIGNUP_PROOF_INVALID(HttpStatus.BAD_REQUEST, "소셜 로그인 인증 시간이 만료되었습니다. 다시 로그인해주세요.");
 
   private final HttpStatus status;
   private final String message;

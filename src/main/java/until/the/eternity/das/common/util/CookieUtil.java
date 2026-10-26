@@ -40,6 +40,13 @@ public class CookieUtil {
     response.addHeader("Set-Cookie", cookie.toString());
   }
 
+  public void createOAuthBindingCookie(HttpServletResponse response, String binding) {
+    ResponseCookie cookie = cookieBuilder("oauth_flow_binding", binding)
+      .maxAge(600)
+      .build();
+    response.addHeader("Set-Cookie", cookie.toString());
+  }
+
   /**
    * 발급과 같은 범위의 만료 쿠키를 보내 브라우저 쿠키를 삭제한다.
    *

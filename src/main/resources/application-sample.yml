@@ -158,6 +158,11 @@ decorator:
       enable-logging: false
 
 app:
+  oauth:
+    redirect-uri: ${OAUTH_FRONTEND_CALLBACK_URL:https://www.memonogi.com/social-callback}
+    code-validity-seconds: ${OAUTH_CODE_VALIDITY_SECONDS:300}
+    proof-validity-seconds: ${OAUTH_PROOF_VALIDITY_SECONDS:300}
+    cleanup-interval-ms: ${OAUTH_CLEANUP_INTERVAL_MS:600000}
   nickname:
     ticket-secret: ${NICKNAME_TICKET_SECRET}
     ticket-validity-seconds: ${NICKNAME_TICKET_VALIDITY_SECONDS:600}
@@ -181,7 +186,7 @@ spring:
 decorator:
   datasource:
     p6spy:
-      enable-logging: true
+      enable-logging: false
 
 logging:
   level:

@@ -40,19 +40,25 @@ public class SocialAuthService {
   private final TokenService tokenService;
   private final KafkaProducerService kafkaProducerService;
   private final NicknameCandidateService nicknameCandidateService;
+  private final OAuthExchangeService exchangeService;
 
   @Transactional
-  public SignUpResponse completeSocialSignup(SocialSignUpRequest request) {
+  public SignUpResponse completeSocialSignup(SocialSignUpRequest request, String binding) {
+    OauthUserDTO dto = exchangeService.consumeSignupProof(request.signupProof(), binding);
+    if (dto.getEmail() == null || dto.getEmail().isBlank()
+      || (request.provider() != null && !request.provider().equalsIgnoreCase(dto.getProvider()))
+      || (request.providerUserId() != null && !request.providerUserId().equals(dto.getProviderUserId()))
+      || (request.email() != null && !request.email().equalsIgnoreCase(dto.getEmail()))) {
+      throw new CustomException(GlobalExceptionCode.OAUTH_SIGNUP_PROOF_INVALID);
+    }
     nicknameCandidateService.validateForChange(request.nickname(), request.nicknameTicket());
-    if (userRepository.existsByEmail(request.email())) {
+    if (userRepository.existsByEmail(dto.getEmail())) {
       throw new CustomException(GlobalExceptionCode.EMAIL_ALREADY_EXISTS);
     }
 
     if (userRepository.existsByNickname(request.nickname())) {
       throw new CustomException(GlobalExceptionCode.NICKNAME_ALREADY_EXISTS);
     }
-
-    OauthUserDTO dto = new OauthUserDTO(request.providerUserId(), request.email(), request.provider());
 
     Role userRole = roleRepository.findByName(Name.USER)
       .orElseThrow(() -> new CustomException(GlobalExceptionCode.USER_ROLE_NOT_EXISTS));
@@ -72,8 +78,8 @@ public class SocialAuthService {
 
     OauthUser oauthUser = OauthUser.builder()
       .user(user)
-      .provider(request.provider())
-      .providerUserId(request.providerUserId())
+      .provider(dto.getProvider())
+      .providerUserId(dto.getProviderUserId())
       .linkedAt(java.time.LocalDateTime.now())
       .build();
     oauthUserRepository.save(oauthUser);

@@ -33,6 +33,7 @@ import until.the.eternity.das.common.util.JwtUtil;
 import until.the.eternity.das.oauth.handler.OAuth2SuccessHandler;
 import until.the.eternity.das.oauth.service.CustomOAuth2UserService;
 import until.the.eternity.das.oauth.service.SocialAuthService;
+import until.the.eternity.das.oauth.service.OAuthExchangeService;
 import until.the.eternity.das.role.entity.Role;
 import until.the.eternity.das.role.entity.enums.Name;
 import until.the.eternity.das.token.application.TokenService;
@@ -73,6 +74,7 @@ class EmailLoginContractTest {
   @MockitoBean private AuthService authService;
   @MockitoBean private TokenService tokenService;
   @MockitoBean private SocialAuthService socialAuthService;
+  @MockitoBean private OAuthExchangeService oauthExchangeService;
   @MockitoBean private UserService userService;
   @MockitoBean private NicknameCandidateService nicknameCandidateService;
   @MockitoBean private UserRepository users;

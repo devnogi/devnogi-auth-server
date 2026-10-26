@@ -2,6 +2,7 @@ package until.the.eternity.das.auth.presentation;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -27,6 +28,7 @@ import until.the.eternity.das.common.exception.GlobalExceptionCode;
 import until.the.eternity.das.common.util.CookieUtil;
 import until.the.eternity.das.common.util.JwtUtil;
 import until.the.eternity.das.oauth.service.SocialAuthService;
+import until.the.eternity.das.oauth.service.OAuthExchangeService;
 import until.the.eternity.das.role.entity.Role;
 import until.the.eternity.das.role.entity.enums.Name;
 import until.the.eternity.das.token.application.TokenService;
@@ -63,6 +65,9 @@ class AuthControllerTest {
 
   @MockitoBean
   private SocialAuthService socialAuthService;
+
+  @MockitoBean
+  private OAuthExchangeService oauthExchangeService;
 
   @MockitoBean
   private CookieUtil cookieUtil;
@@ -165,9 +170,9 @@ class AuthControllerTest {
   }
 
   @Test
-  void oldSocialSignupPageWithoutTicketReceivesRefreshGuidance() throws Exception {
-    when(socialAuthService.completeSocialSignup(any(SocialSignUpRequest.class)))
-      .thenThrow(new CustomException(GlobalExceptionCode.NICKNAME_TICKET_REQUIRED));
+  void oldSocialSignupPageWithoutProofReceivesRefreshGuidance() throws Exception {
+    when(socialAuthService.completeSocialSignup(any(SocialSignUpRequest.class), any()))
+      .thenThrow(new CustomException(GlobalExceptionCode.OAUTH_SIGNUP_PROOF_REQUIRED));
 
     mockMvc.perform(multipart("/api/auth/signup/social")
         .param("provider", "google")
@@ -175,8 +180,25 @@ class AuthControllerTest {
         .param("email", "old-social@example.invalid")
         .param("nickname", "manualName"))
       .andExpect(status().isBadRequest())
-      .andExpect(jsonPath("$.code").value("NICKNAME_TICKET_REQUIRED"))
+      .andExpect(jsonPath("$.code").value("OAUTH_SIGNUP_PROOF_REQUIRED"))
+      .andExpect(header().string("Cache-Control", "no-store"))
       .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("새로고침")));
+  }
+
+  @Test
+  void oauthExchangeForwardsOnlyCodeAndBindingAndDisablesCache() throws Exception {
+    when(jwtConstant.getAccessTokenCookieName()).thenReturn("access_token");
+    when(oauthExchangeService.exchange("synthetic-code", "synthetic-binding"))
+      .thenReturn(new OAuthExchangeService.ExchangeResult("LOGIN_SUCCESS", null, null, null));
+
+    mockMvc.perform(post("/api/auth/oauth/exchange")
+        .cookie(new Cookie(OAuthExchangeService.BINDING_COOKIE, "synthetic-binding"))
+        .contentType(MediaType.APPLICATION_JSON)
+        .content("{\"code\":\"synthetic-code\"}"))
+      .andExpect(status().isOk())
+      .andExpect(header().string("Cache-Control", "no-store"))
+      .andExpect(header().string("Referrer-Policy", "no-referrer"))
+      .andExpect(jsonPath("$.data.type").value("LOGIN_SUCCESS"));
   }
 
   @Test
