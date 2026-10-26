@@ -1,9 +1,13 @@
 package until.the.eternity.das.user.application;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import until.the.eternity.das.common.aop.ActiveUserRequired;
+import until.the.eternity.das.auth.application.NicknameCandidateService;
 import until.the.eternity.das.common.application.KafkaProducerService;
 import until.the.eternity.das.common.application.S3Service;
 import until.the.eternity.das.common.exception.CustomException;
@@ -34,18 +38,22 @@ public class UserService {
   private final UserRepository userRepository;
   private final S3Service s3Service;
   private final KafkaProducerService kafkaProducerService;
+  private final NicknameCandidateService nicknameCandidateService;
+  private final EntityManager entityManager;
 
   @Transactional
   @ActiveUserRequired
   public Boolean updateUserInfo(UserInfoUpdateRequest request, Long userId) {
     User user = userRepository.findById(userId)
       .orElseThrow(() -> new CustomException(GlobalExceptionCode.USER_NOT_EXISTS));
+    entityManager.refresh(user, LockModeType.PESSIMISTIC_WRITE);
 
     String nextNickname = resolveNextNickname(request.nickname(), user.getNickname());
 
     boolean wantsNicknameChange = !Objects.equals(nextNickname, user.getNickname());
     ensureIdentityUpdateAllowed(user, wantsNicknameChange, false);
     if (wantsNicknameChange) {
+      nicknameCandidateService.validateForChange(nextNickname, request.nicknameTicket());
       validateNickname(nextNickname);
       validateNicknameCombination(nextNickname);
       ensureNicknameAvailable(nextNickname, userId);
@@ -62,9 +70,14 @@ public class UserService {
       profileImageUrl = s3Service.uploadImage(request.file(), dirName);
     }
 
+    user.updateUserInfo(nextNickname, profileImageUrl);
     try {
-      user.updateUserInfo(nextNickname, profileImageUrl);
+      userRepository.flush();
+    } catch (DataIntegrityViolationException e) {
+      throw new CustomException(GlobalExceptionCode.NICKNAME_ALREADY_EXISTS);
+    }
 
+    try {
       UserInfoUpdateEvent kafKaEvent = UserInfoUpdateEvent.of(user);
 
       kafkaProducerService.sendUserInfoUpdateEvent(kafKaEvent);
@@ -106,7 +119,7 @@ public class UserService {
 
     do {
       if (attempt >= maxAttempt) {
-        throw new CustomException(GlobalExceptionCode.SERVER_ERROR);
+        throw new CustomException(GlobalExceptionCode.NICKNAME_GENERATION_FAILED);
       }
 
       String adjective = NicknameAdjective.random()

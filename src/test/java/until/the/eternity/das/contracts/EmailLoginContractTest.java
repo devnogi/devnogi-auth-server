@@ -19,6 +19,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.yaml.snakeyaml.Yaml;
 import until.the.eternity.das.auth.application.AuthService;
+import until.the.eternity.das.auth.application.NicknameCandidateService;
 import until.the.eternity.das.auth.dto.request.LoginRequest;
 import until.the.eternity.das.auth.dto.response.LoginResultResponse;
 import until.the.eternity.das.auth.presentation.AuthController;
@@ -73,6 +74,7 @@ class EmailLoginContractTest {
   @MockitoBean private TokenService tokenService;
   @MockitoBean private SocialAuthService socialAuthService;
   @MockitoBean private UserService userService;
+  @MockitoBean private NicknameCandidateService nicknameCandidateService;
   @MockitoBean private UserRepository users;
   @MockitoBean private CustomOAuth2UserService oauthUsers;
   @MockitoBean private OAuth2SuccessHandler oauthSuccess;

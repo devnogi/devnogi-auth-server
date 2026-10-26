@@ -12,6 +12,8 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import until.the.eternity.das.auth.dto.request.LoginRequest;
 import until.the.eternity.das.auth.dto.request.SignUpRequest;
+import until.the.eternity.das.common.exception.CustomException;
+import until.the.eternity.das.common.exception.GlobalExceptionCode;
 import until.the.eternity.das.common.application.KafkaProducerService;
 import until.the.eternity.das.common.application.S3Service;
 import until.the.eternity.das.common.constant.JwtConstant;
@@ -26,13 +28,15 @@ import until.the.eternity.das.token.entity.RefreshTokenRepository;
 import until.the.eternity.das.user.entity.UserRepository;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @DataJpaTest(properties = {
   "jwt.secret-key=bWVtb25vZ2ktbG9jYWwtb25seS1zeW50aGV0aWMta2V5LTIwMjY=",
   "jwt.access-token-validity=3600000",
   "jwt.refresh-token-validity=86400000"
 })
-@Import({AuthService.class, AuthConverter.class, TokenService.class, JwtUtil.class, RoleRepositoryImpl.class,
+@Import({AuthService.class, AuthConverter.class, TokenService.class, JwtUtil.class, NicknameCandidateService.class, RoleRepositoryImpl.class,
   FreshAccountLoginJpaTest.Configuration.class})
 class FreshAccountLoginJpaTest {
 
@@ -52,14 +56,17 @@ class FreshAccountLoginJpaTest {
   @Autowired private RefreshTokenRepository refreshTokens;
   @Autowired private EntityManager entityManager;
   @Autowired private JwtUtil jwtUtil;
+  @Autowired private NicknameCandidateService nicknameCandidates;
   @MockitoBean private S3Service s3Service;
   @MockitoBean private KafkaProducerService kafkaProducerService;
 
   @Test
   void firstLoginCreatesAccountLockAndPersistsLoginStateWithoutSeededLock() {
     entityManager.persist(Role.builder().name(Name.USER).build());
+    String nickname = "강인한 인간 ABC12";
+    String ticket = nicknameCandidates.issue(nickname).nicknameTicket();
     Long userId = authService.signUpUser(new SignUpRequest(
-      "fresh@example.test", "LocalPass123!", "freshuser", null)).id();
+      "fresh@example.test", "LocalPass123!", nickname, ticket, null)).id();
     entityManager.flush();
     entityManager.clear();
     assertThat(accountLocks.findById(userId)).isEmpty();
@@ -87,5 +94,17 @@ class FreshAccountLoginJpaTest {
     assertThat(accountLocks.count()).isEqualTo(1);
     assertThat(loginHistory.count()).isEqualTo(2);
     assertThat(refreshTokens.count()).isEqualTo(2);
+  }
+
+  @Test
+  void oldSignupRequestWithoutTicketCannotCreateAccount() {
+    entityManager.persist(Role.builder().name(Name.USER).build());
+
+    CustomException error = assertThrows(CustomException.class,
+      () -> authService.signUpUser(new SignUpRequest(
+        "old-page@example.test", "LocalPass123!", "강인한 인간 ABC12", null, null)));
+
+    assertEquals(GlobalExceptionCode.NICKNAME_TICKET_REQUIRED, error.getCode());
+    assertThat(users.findByEmail("old-page@example.test")).isEmpty();
   }
 }

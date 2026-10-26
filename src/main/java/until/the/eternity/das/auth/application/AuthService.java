@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import until.the.eternity.das.auth.dto.request.LoginRequest;
@@ -45,6 +46,7 @@ public class AuthService {
   private final TokenService tokenService;
   private final S3Service s3Service;
   private final KafkaProducerService kafkaProducerService;
+  private final NicknameCandidateService nicknameCandidateService;
 
   @Transactional
   public void logout(Long userId) {
@@ -163,6 +165,7 @@ public class AuthService {
       throw new CustomException(GlobalExceptionCode.EMAIL_ALREADY_EXISTS);
     }
 
+    nicknameCandidateService.validateForChange(request.nickname(), request.nicknameTicket());
     isValidNicknameFormat(request.nickname());
     if (userRepository.existsByNickname(request.nickname())) {
       throw new CustomException(GlobalExceptionCode.NICKNAME_ALREADY_EXISTS);
@@ -179,7 +182,11 @@ public class AuthService {
     User user = authConverter.fromUserSignUpRequestToUser(request,
       bCryptPasswordEncoder.encode(request.password()), role, profileImageUrl);
 
-    userRepository.save(user);
+    try {
+      userRepository.saveAndFlush(user);
+    } catch (DataIntegrityViolationException e) {
+      throw new CustomException(GlobalExceptionCode.NICKNAME_ALREADY_EXISTS);
+    }
 
     try {
       UserInfoUpdateEvent kafKaEvent = UserInfoUpdateEvent.of(user);
@@ -212,7 +219,7 @@ public class AuthService {
   }
 
   public void isValidNicknameFormat(@NotBlank String nickname) {
-    if (nickname == null || !nickname.matches("^[가-힣a-zA-Z0-9]{2,20}$")) {
+    if (nickname == null || !nickname.matches("^[가-힣a-zA-Z0-9 ]{2,20}$")) {
       throw new CustomException(GlobalExceptionCode.INVALID_NICKNAME_FORMAT);
     }
   }

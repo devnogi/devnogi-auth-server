@@ -13,10 +13,13 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import until.the.eternity.das.auth.application.AuthService;
+import until.the.eternity.das.auth.application.NicknameCandidateService;
 import until.the.eternity.das.auth.dto.request.LoginRequest;
 import until.the.eternity.das.auth.dto.request.SignUpRequest;
+import until.the.eternity.das.auth.dto.request.SocialSignUpRequest;
 import until.the.eternity.das.auth.dto.response.LoginResultResponse;
 import until.the.eternity.das.auth.dto.response.SignUpResponse;
+import until.the.eternity.das.auth.dto.response.NicknameCandidateResponse;
 import until.the.eternity.das.common.config.TestSecurityConfig;
 import until.the.eternity.das.common.constant.JwtConstant;
 import until.the.eternity.das.common.exception.CustomException;
@@ -39,6 +42,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(AuthController.class)
@@ -74,6 +78,9 @@ class AuthControllerTest {
 
   @MockitoBean
   private UserService userService;
+
+  @MockitoBean
+  private NicknameCandidateService nicknameCandidateService;
 
   private MockMultipartFile mockFile;
   private SignUpRequest signUpRequest;
@@ -144,6 +151,35 @@ class AuthControllerTest {
   }
 
   @Test
+  void oldSignupPageWithoutTicketReceivesRefreshGuidance() throws Exception {
+    when(authService.signUpUser(any(SignUpRequest.class)))
+      .thenThrow(new CustomException(GlobalExceptionCode.NICKNAME_TICKET_REQUIRED));
+
+    mockMvc.perform(multipart("/api/auth/signup")
+        .param("email", "old-page@example.invalid")
+        .param("password", "LocalPass123!")
+        .param("nickname", "manualName"))
+      .andExpect(status().isBadRequest())
+      .andExpect(jsonPath("$.code").value("NICKNAME_TICKET_REQUIRED"))
+      .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("새로고침")));
+  }
+
+  @Test
+  void oldSocialSignupPageWithoutTicketReceivesRefreshGuidance() throws Exception {
+    when(socialAuthService.completeSocialSignup(any(SocialSignUpRequest.class)))
+      .thenThrow(new CustomException(GlobalExceptionCode.NICKNAME_TICKET_REQUIRED));
+
+    mockMvc.perform(multipart("/api/auth/signup/social")
+        .param("provider", "google")
+        .param("providerUserId", "synthetic-id")
+        .param("email", "old-social@example.invalid")
+        .param("nickname", "manualName"))
+      .andExpect(status().isBadRequest())
+      .andExpect(jsonPath("$.code").value("NICKNAME_TICKET_REQUIRED"))
+      .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("새로고침")));
+  }
+
+  @Test
   @DisplayName("로그인 API 성공 시 쿠키 생성 및 사용자 정보 반환 테스트")
   void loginApi_Success() throws Exception {
     // --- GIVEN (주어진 상황) ---
@@ -201,5 +237,20 @@ class AuthControllerTest {
       .andExpect(jsonPath("$.data").value(expectedNickname));
       
     verify(userService).generateRandomNickname();
+  }
+
+  @Test
+  void candidateEndpointReturnsNameTicketExpirationAndNoStore() throws Exception {
+    String nickname = "강인한 인간 ABC12";
+    when(userService.generateRandomNickname()).thenReturn(nickname);
+    when(nicknameCandidateService.issue(nickname)).thenReturn(new NicknameCandidateResponse(
+      nickname, "synthetic-ticket", java.time.Instant.parse("2026-10-26T00:10:00Z")));
+
+    mockMvc.perform(get("/api/auth/random-nickname/candidate"))
+      .andExpect(status().isOk())
+      .andExpect(header().string("Cache-Control", "no-store"))
+      .andExpect(jsonPath("$.data.nickname").value(nickname))
+      .andExpect(jsonPath("$.data.nicknameTicket").value("synthetic-ticket"))
+      .andExpect(jsonPath("$.data.expiresAt").value("2026-10-26T00:10:00Z"));
   }
 }

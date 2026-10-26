@@ -5,6 +5,8 @@ import org.springframework.web.multipart.MultipartFile;
 public record UserInfoUpdateRequest(
   String nickname,
 
+  String nicknameTicket,
+
   MultipartFile file
 ) {
 }

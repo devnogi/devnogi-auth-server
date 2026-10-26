@@ -32,7 +32,7 @@ public class User {
   @Comment("암호화된 비밀번호 (소셜로그인 회원은 null)")
   private String passwordHash;
 
-  @Column(nullable = false, unique = true, length = 50)
+  @Column(nullable = false, length = 50)
   @Comment("사용자 닉네임 (커뮤니티 표시용)")
   private String nickname;
 
