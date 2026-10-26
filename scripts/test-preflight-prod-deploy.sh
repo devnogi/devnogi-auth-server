@@ -12,7 +12,7 @@ printf '%s\n' 'MINIO_ENDPOINT=http://example.invalid' >> "$test_dir/base.env"
 # Convert the HTTP localhost fixture to a synthetic production cookie scope.
 sed 's/^JWT_COOKIE_DOMAIN=.*/JWT_COOKIE_DOMAIN=.memonogi.com/;
      s/^JWT_COOKIE_SECURE=.*/JWT_COOKIE_SECURE=true/;
-     s/^JWT_COOKIE_SAME_SITE=.*/JWT_COOKIE_SAME_SITE=None/' \
+     s/^JWT_COOKIE_SAME_SITE=.*/JWT_COOKIE_SAME_SITE=Lax/' \
   "$test_dir/base.env" > "$test_dir/prod.env"
 cat > "$test_dir/bin/docker" <<'EOF'
 #!/bin/sh
@@ -79,7 +79,7 @@ reject_setting JWT_COOKIE_DOMAIN '' 'empty cookie domain'
 reject_setting JWT_COOKIE_DOMAIN evil.invalid 'foreign cookie domain'
 reject_setting JWT_COOKIE_DOMAIN api.memonogi.com 'host-specific cookie domain'
 reject_setting JWT_COOKIE_SECURE false 'insecure cookie'
-reject_setting JWT_COOKIE_SAME_SITE Lax 'Lax cookie policy'
+reject_setting JWT_COOKIE_SAME_SITE None 'cross-site cookie policy'
 reject_setting JWT_COOKIE_SAME_SITE invalid 'invalid cookie policy'
 
 sed 's/^JWT_COOKIE_DOMAIN=.*/JWT_COOKIE_DOMAIN=memonogi.com/' prod.env > .env.prod

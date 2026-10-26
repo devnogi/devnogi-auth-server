@@ -110,8 +110,8 @@ if [ "${cookie_secure}" != 'true' ]; then
   echo 'JWT_COOKIE_SECURE must be true in production' >&2
   exit 1
 fi
-if [ "${cookie_same_site}" != 'None' ]; then
-  echo 'JWT_COOKIE_SAME_SITE must be None for the production OAuth cookie flow' >&2
+if [ "${cookie_same_site}" != 'Lax' ]; then
+  echo 'JWT_COOKIE_SAME_SITE must be Lax for the production OAuth cookie flow' >&2
   exit 1
 fi
 
