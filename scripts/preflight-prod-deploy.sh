@@ -28,7 +28,9 @@ required_keys='SERVER_PORT BASE_URL DB_HOST DB_PORT DB_SCHEMA DB_USER DB_PASSWOR
 GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET KAKAO_CLIENT_ID KAKAO_CLIENT_SECRET
 NAVER_CLIENT_ID NAVER_CLIENT_SECRET MAIL_PASSWORD KAFKA_BOOTSTRAP_SERVERS
 AWS_REGION AWS_ACCESS_KEY AWS_SECRET_KEY OCI_NAMESPACE JWT_SECRET_KEY
-NICKNAME_TICKET_SECRET USER_VERIFICATION_HASH_SECRET MINIO_ENDPOINT'
+NICKNAME_TICKET_SECRET USER_VERIFICATION_HASH_SECRET MINIO_ENDPOINT
+JWT_ACCESS_TOKEN_VALIDITY JWT_REFRESH_TOKEN_VALIDITY
+JWT_COOKIE_DOMAIN JWT_COOKIE_SECURE JWT_COOKIE_SAME_SITE'
 for key in ${required_keys}; do
   if ! awk -v wanted="${key}" '
     /^[[:space:]]*(#|$)/ { next }
@@ -50,19 +52,24 @@ for key in ${required_keys}; do
   fi
 done
 
-server_port=$(awk '
+read_setting() {
+  awk -v wanted="$1" '
+    /^[[:space:]]*(#|$)/ { next }
   {
     equals = index($0, "=")
     if (equals == 0) next
     name = substr($0, 1, equals - 1)
     gsub(/^[[:space:]]+|[[:space:]]+$/, "", name)
-    if (name != "SERVER_PORT") next
+    if (name != wanted) next
     value = substr($0, equals + 1)
     gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
     count++
   }
   END { if (count == 1) print value; else exit 1 }
-' "${DEPLOY_ENV_FILE}") || {
+  ' "${DEPLOY_ENV_FILE}"
+}
+
+server_port=$(read_setting SERVER_PORT) || {
   echo "SERVER_PORT must appear exactly once" >&2
   exit 1
 }
@@ -73,6 +80,41 @@ if [ "${server_port}" -lt 1 ] || [ "${server_port}" -gt 65535 ]; then
   echo "SERVER_PORT is outside the TCP port range" >&2
   exit 1
 fi
+
+# Cookie Max-Age divides these millisecond values by 1000. Reject legacy
+# second-sized values and unreasonable lifetimes before replacing the service.
+access_validity=$(read_setting JWT_ACCESS_TOKEN_VALIDITY)
+refresh_validity=$(read_setting JWT_REFRESH_TOKEN_VALIDITY)
+case "${access_validity}" in
+  ''|*[!0-9]*) echo 'JWT_ACCESS_TOKEN_VALIDITY must be milliseconds' >&2; exit 1 ;;
+esac
+case "${refresh_validity}" in
+  ''|*[!0-9]*) echo 'JWT_REFRESH_TOKEN_VALIDITY must be milliseconds' >&2; exit 1 ;;
+esac
+if ! awk -v access="${access_validity}" -v refresh="${refresh_validity}" '
+  BEGIN { exit !(access >= 60000 && access <= 86400000 &&
+                 refresh > access && refresh <= 2592000000) }
+'; then
+  echo 'JWT token lifetimes must be valid millisecond durations with refresh longer than access' >&2
+  exit 1
+fi
+
+cookie_domain=$(read_setting JWT_COOKIE_DOMAIN)
+cookie_secure=$(read_setting JWT_COOKIE_SECURE)
+cookie_same_site=$(read_setting JWT_COOKIE_SAME_SITE)
+case "${cookie_domain}" in
+  .memonogi.com|memonogi.com) ;;
+  *) echo 'JWT_COOKIE_DOMAIN must cover memonogi.com' >&2; exit 1 ;;
+esac
+if [ "${cookie_secure}" != 'true' ]; then
+  echo 'JWT_COOKIE_SECURE must be true in production' >&2
+  exit 1
+fi
+if [ "${cookie_same_site}" != 'None' ]; then
+  echo 'JWT_COOKIE_SAME_SITE must be None for the production OAuth cookie flow' >&2
+  exit 1
+fi
+
 if ! command -v curl >/dev/null 2>&1; then
   echo "curl is required for the post-deployment health check" >&2
   exit 1
