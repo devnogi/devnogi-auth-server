@@ -46,6 +46,7 @@ import until.the.eternity.das.user.presentation.UserController;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.Date;
 import java.util.Optional;
@@ -167,6 +168,47 @@ class EmailLoginContractTest {
     assertResponse(result, "/api/auth/logout", "post");
     assertLocalCookies(result, true);
     verify(authService).logout(1L);
+  }
+
+  @Test
+  void realJwtCookiesForOrdinaryAccountFitAndKeepScopeThroughRefreshAndLogout() throws Exception {
+    String firstAccess = jwt.generateAccessToken(user);
+    String firstRefresh = jwt.generateRefreshToken(user);
+    String nextAccess = jwt.generateAccessToken(user);
+    String nextRefresh = jwt.generateRefreshToken(user);
+    assertThat(jwt.extractAllClaims(firstRefresh).getId()).isNotBlank();
+    assertThat(nextRefresh).isNotEqualTo(firstRefresh);
+    when(authService.login(any(), anyString(), any())).thenReturn(
+      new LoginResultResponse(user, firstAccess, firstRefresh));
+    when(tokenService.refresh(firstRefresh)).thenReturn(
+      new LoginResultResponse(user, nextAccess, nextRefresh));
+
+    MvcResult login = mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+        .content(mapper.writeValueAsBytes(new LoginRequest(user.getEmail(), "LocalPass123!"))))
+      .andExpect(status().isOk()).andReturn();
+    assertLocalCookies(login, false);
+    assertCookieFits(login, "access_token", firstAccess);
+    assertCookieFits(login, "refresh_token", firstRefresh);
+
+    MvcResult refresh = mvc.perform(post("/api/auth/refresh").cookie(new Cookie("refresh_token", firstRefresh)))
+      .andExpect(status().isOk()).andReturn();
+    assertLocalCookies(refresh, false);
+    assertCookieFits(refresh, "access_token", nextAccess);
+    assertCookieFits(refresh, "refresh_token", nextRefresh);
+    verify(tokenService).refresh(firstRefresh);
+
+    MvcResult logout = mvc.perform(post("/api/auth/logout").cookie(new Cookie("access_token", nextAccess)))
+      .andExpect(status().isOk()).andReturn();
+    assertLocalCookies(logout, true);
+    verify(authService).logout(1L);
+  }
+
+  private void assertCookieFits(MvcResult result, String name, String token) {
+    String header = result.getResponse().getHeaders("Set-Cookie").stream()
+      .filter(value -> value.startsWith(name + "="))
+      .findFirst().orElseThrow();
+    assertThat(header.split(";", 2)[0]).isEqualTo(name + "=" + token);
+    assertThat((name + token).getBytes(StandardCharsets.UTF_8).length).isLessThanOrEqualTo(4096);
   }
 
   @Test

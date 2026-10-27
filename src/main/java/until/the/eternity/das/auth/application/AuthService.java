@@ -80,7 +80,8 @@ public class AuthService {
 
   @Transactional
   public LoginResultResponse login(LoginRequest request, String clientIp, String userAgent) {
-    User user = userRepository.findByEmail(request.email())
+    // Lock before account-lock/history writes, matching refresh and logout lock order.
+    User user = userRepository.findByEmailForUpdate(request.email())
       .orElseThrow(() -> new CustomException(GlobalExceptionCode.USER_NOT_EXISTS));
 
     AccountLock accountLock = accountLockRepository.findById(user.getId())

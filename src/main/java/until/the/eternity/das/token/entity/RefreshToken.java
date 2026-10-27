@@ -26,7 +26,7 @@ public class RefreshToken {
   @Comment("사용자 ID")
   private User user;
 
-  @Column(nullable = false, length = 512)
+  @Column(nullable = false, length = 8192)
   @Comment("JWT Refresh Token")
   private String token;
 

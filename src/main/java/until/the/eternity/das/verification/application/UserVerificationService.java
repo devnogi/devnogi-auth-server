@@ -183,7 +183,7 @@ public class UserVerificationService {
 
       if (event.verificationValue() == null || event.verificationValue()
         .isBlank()) {
-        recordFailure(null, null, event.verificationValue(), event.serverName(), event.characterName(), now,
+        recordFailure(null, null, event.serverName(), event.characterName(), now,
           VerificationFailureReason.INVALID_MESSAGE);
         return;
       }
@@ -193,7 +193,7 @@ public class UserVerificationService {
         .orElse(null);
 
       if (token == null) {
-        recordFailure(null, null, normalizedTokenValue, event.serverName(), event.characterName(), now,
+        recordFailure(null, null, event.serverName(), event.characterName(), now,
           VerificationFailureReason.TOKEN_NOT_FOUND);
         return;
       }
@@ -202,19 +202,19 @@ public class UserVerificationService {
       entityManager.refresh(user, LockModeType.PESSIMISTIC_WRITE);
 
       if (token.isRevoked()) {
-        recordFailure(user, token, normalizedTokenValue, event.serverName(), event.characterName(), now,
+        recordFailure(user, token, event.serverName(), event.characterName(), now,
           VerificationFailureReason.TOKEN_REVOKED);
         return;
       }
 
       if (token.isExpired(now)) {
-        recordFailure(user, token, normalizedTokenValue, event.serverName(), event.characterName(), now,
+        recordFailure(user, token, event.serverName(), event.characterName(), now,
           VerificationFailureReason.TOKEN_EXPIRED);
         return;
       }
 
       if (token.isVerified()) {
-        recordFailure(user, token, normalizedTokenValue, event.serverName(), event.characterName(), now,
+        recordFailure(user, token, event.serverName(), event.characterName(), now,
           VerificationFailureReason.TOKEN_ALREADY_VERIFIED);
         return;
       }
@@ -223,20 +223,20 @@ public class UserVerificationService {
         .isBlank()
         || event.characterName() == null || event.characterName()
         .isBlank()) {
-        recordFailure(user, token, normalizedTokenValue, event.serverName(), event.characterName(), now,
+        recordFailure(user, token, event.serverName(), event.characterName(), now,
           VerificationFailureReason.INVALID_MESSAGE);
         return;
       }
 
       if (event.characterName()
         .length() > MAX_CHARACTER_NAME_LENGTH) {
-        recordFailure(user, token, normalizedTokenValue, event.serverName(), event.characterName(), now,
+        recordFailure(user, token, event.serverName(), event.characterName(), now,
           VerificationFailureReason.INVALID_MESSAGE); // or an appropriate new reason like CHARACTER_NAME_TOO_LONG
         return;
       }
 
 //      if (userRepository.existsByNicknameAndIdNot(event.characterName(), user.getId())) {
-//        recordFailure(user, token, normalizedTokenValue, event.serverName(), event.characterName(), now,
+//        recordFailure(user, token, event.serverName(), event.characterName(), now,
 //          VerificationFailureReason.NICKNAME_DUPLICATED);
 //        return;
 //      }
@@ -271,13 +271,13 @@ public class UserVerificationService {
 
       kafkaProducerService.sendUserInfoUpdateEvent(UserInfoUpdateEvent.of(user));
 
-      logVerificationResult(true, "VERIFIED", user.getId(), normalizedTokenValue, event.serverName(),
-        event.characterName());
+      logVerificationResult(true, "VERIFIED", user.getId());
     } catch (CustomException e) {
-      log.error("User verification processing failed. payload={}", payload, e);
+      log.error("User verification processing failed. code={}", e.getCode().getCode());
       throw e;
     } catch (Exception e) {
-      log.error("Unexpected error while processing user verification payload. payload={}", payload, e);
+      log.error("Unexpected error while processing user verification. exceptionType={}",
+        e.getClass().getSimpleName());
       throw new CustomException(GlobalExceptionCode.USER_VERIFICATION_INVALID);
     }
   }
@@ -360,8 +360,8 @@ public class UserVerificationService {
     try {
       return objectMapper.readValue(payload, UserVerificationVerifyMessage.class);
     } catch (JsonProcessingException e) {
-      log.warn("Invalid kafka payload for verification. payload={}", payload);
-      recordFailure(null, null, null, null, null, LocalDateTime.now(), VerificationFailureReason.INVALID_MESSAGE);
+      log.warn("Invalid kafka payload for verification");
+      recordFailure(null, null, null, null, LocalDateTime.now(), VerificationFailureReason.INVALID_MESSAGE);
       return null;
     }
   }
@@ -369,25 +369,30 @@ public class UserVerificationService {
   private void recordFailure(
     User user,
     UserVerificationToken token,
-    String providedTokenValue,
     String serverName,
     String characterName,
     LocalDateTime now,
     VerificationFailureReason reason
   ) {
-    userVerificationHistoryService.saveFailureHistory(user, token, serverName, characterName, reason);
-
-    String tokenValueForLog = providedTokenValue != null
-      ? providedTokenValue
-      : token == null ? null : token.getTokenValue();
+    if (user == null) {
+      userVerificationHistoryService.saveFailureHistory(null, token, serverName, characterName, reason);
+    } else {
+      // Keep the history insert in the transaction that holds the user's write lock.
+      userVerificationHistoryRepository.save(UserVerificationHistory.builder()
+        .user(user)
+        .token(token)
+        .serverName(serverName)
+        .characterName(characterName)
+        .failureReason(reason)
+        .verifiedAt(now)
+        .verificationSuccess(false)
+        .build());
+    }
 
     logVerificationResult(
       false,
       reason.name(),
-      user == null ? null : user.getId(),
-      tokenValueForLog,
-      serverName,
-      characterName
+      user == null ? null : user.getId()
     );
   }
 
@@ -442,19 +447,13 @@ public class UserVerificationService {
   private void logVerificationResult(
     boolean success,
     String result,
-    Long userId,
-    String tokenValue,
-    String serverName,
-    String characterName
+    Long userId
   ) {
     log.info(
-      "User verification {} via kafka. result={}, userId={}, tokenValue={}, serverName={}, characterName={}",
+      "User verification {} via kafka. result={}, userId={}",
       success ? "success" : "failure",
       result,
-      userId,
-      tokenValue,
-      serverName,
-      characterName
+      userId
     );
   }
 

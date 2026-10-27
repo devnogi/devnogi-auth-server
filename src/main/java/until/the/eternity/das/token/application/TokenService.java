@@ -1,5 +1,7 @@
 package until.the.eternity.das.token.application;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -11,7 +13,6 @@ import until.the.eternity.das.common.util.JwtUtil;
 import until.the.eternity.das.token.entity.RefreshToken;
 import until.the.eternity.das.token.entity.RefreshTokenRepository;
 import until.the.eternity.das.user.entity.User;
-import until.the.eternity.das.user.entity.UserRepository;
 import until.the.eternity.das.user.entity.enums.Status;
 
 import java.time.LocalDateTime;
@@ -23,8 +24,8 @@ import java.util.List;
 public class TokenService {
 
   private final RefreshTokenRepository refreshTokenRepository;
-  private final UserRepository userRepository;
   private final JwtUtil jwtUtil;
+  private final EntityManager entityManager;
 
   /**
    * 사용자를 위해 새로운 리프레시 토큰을 발급하고 저장합니다.
@@ -34,8 +35,7 @@ public class TokenService {
    */
   @Transactional
   public void saveNewRefreshToken(Long userId, String token) {
-    User user = userRepository.findById(userId)
-      .orElseThrow(() -> new CustomException(GlobalExceptionCode.USER_NOT_EXISTS));
+    User user = lockUser(userId);
 
     RefreshToken newRefreshToken = RefreshToken.builder()
       .user(user)
@@ -59,30 +59,28 @@ public class TokenService {
       throw new CustomException(GlobalExceptionCode.INVALID_REFRESH_TOKEN);
     }
 
-    // 3. DB에서 유효한(revoked=false) 토큰 조회
-    RefreshToken storedToken = refreshTokenRepository.findByTokenAndRevokedFalse(refreshTokenStr)
-      .orElseThrow(() -> new CustomException(GlobalExceptionCode.INVALID_REFRESH_TOKEN));
-
-    // 4. 사용자 존재 + ACTIVE 상태 확인
+    // 3. Lock the user first, matching the logout lock order.
     Long userId = claims.get("userId", Long.class);
-    User user = userRepository.findById(userId)
-      .orElseThrow(() -> new CustomException(GlobalExceptionCode.USER_NOT_EXISTS));
+    User user = lockUser(userId);
 
     if (user.getStatus() != Status.ACTIVE) {
       throw new CustomException(GlobalExceptionCode.USER_DISABLED);
     }
 
-    // 5. 기존 refresh token revoke
-    storedToken.revoke();
+    // 4. A single conditional update rejects replay and duplicate legacy rows.
+    // A non-one result throws and rolls back the entire update transaction.
+    if (refreshTokenRepository.revokeActiveToken(refreshTokenStr, user) != 1) {
+      throw new CustomException(GlobalExceptionCode.INVALID_REFRESH_TOKEN);
+    }
 
-    // 6. 새 access token + 새 refresh token 발급 (토큰 로테이션)
+    // 5. 새 access token + 새 refresh token 발급 (토큰 로테이션)
     String newAccessToken = jwtUtil.generateAccessToken(user);
     String newRefreshToken = jwtUtil.generateRefreshToken(user);
 
-    // 7. 새 refresh token DB 저장
+    // 6. 새 refresh token DB 저장
     saveNewRefreshToken(userId, newRefreshToken);
 
-    // 8. LoginResultResponse 반환
+    // 7. LoginResultResponse 반환
     return LoginResultResponse.builder()
       .user(user)
       .accessToken(newAccessToken)
@@ -92,10 +90,17 @@ public class TokenService {
 
   @Transactional
   public void revokeAllUserTokens(Long userId) {
-    User user = userRepository.findById(userId)
-      .orElseThrow(() -> new CustomException(GlobalExceptionCode.USER_NOT_EXISTS));
+    User user = lockUser(userId);
 
     List<RefreshToken> activeTokens = refreshTokenRepository.findAllByUserAndRevokedFalse(user);
     activeTokens.forEach(RefreshToken::revoke);
+  }
+
+  private User lockUser(Long userId) {
+    User user = entityManager.find(User.class, userId, LockModeType.PESSIMISTIC_WRITE);
+    if (user == null) {
+      throw new CustomException(GlobalExceptionCode.USER_NOT_EXISTS);
+    }
+    return user;
   }
 }
