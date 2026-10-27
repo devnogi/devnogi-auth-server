@@ -26,7 +26,9 @@ docker compose --env-file .env.local -f docker-compose-local.yml up --build auth
 
 ## CI와 배포
 
-PR 필수 검사 이름은 verify와 secret-scan이다. 원격 브랜치 보호에서 두 검사와 사람 리뷰를 필수로 지정해야 강제된다. yaml 파일만 추가해도 보호가 활성화되는 것은 아니다. 이미지 게시/운영 배포는 workflow_dispatch로 분리했고 운영은 main/production, 개발은 dev/development로 제한한다. GitHub Environment에 승인자를 별도로 설정해야 실제 사람 승인 게이트가 생긴다. push/PR 생성만으로 배포하지 않는다.
+PR 필수 검사 이름은 verify와 secret-scan이다. 원격 브랜치 보호에서 두 검사와 사람 리뷰를 필수로 지정해야 강제된다. YAML 파일만 추가해도 보호가 활성화되는 것은 아니다. 운영 이미지 게시와 배포는 `workflow_dispatch`로만 실행한다. `main` 수동 실행은 현재 `dev`의 SHA 태그를 게시하고 검증된 이미지 digest로 배포한다. 빠른 개선을 위해 2026-12-31 23:59:59 KST까지 승인받은 사람이 `dev`에서 수동 실행하면 `dev-<실행 SHA>` 태그를 게시하고 같은 build의 검증된 digest로 배포한다. 운영 Compose는 `IMAGE_REF` digest를 필수로 요구하며 `latest` 태그를 기본값으로 사용하지 않는다.
+
+`dev` 실행은 production 환경 접근 전, 두 운영 job의 승인 직후, 이미지 게시 전, 첫 SSH 연결 전, 실제 컨테이너 교체 직전에 기한을 검사한다. 2027-01-01 00:00 KST부터 `dev` 운영 배포를 차단한다. GitHub `production` Environment는 현재 `main`만 허용하므로 `dev`를 실제 배포하려면 허용 브랜치에 추가하고 기존 승인자를 유지하는 별도 사람 승인이 필요하다. PR 병합과 실제 운영 배포도 각각 별도 승인 대상이며 push/PR 생성만으로 배포하지 않는다.
 
 닉네임 정책 변경의 MySQL 검증은 PR `verify` job에서 MySQL 8.0.42에 실제 Flyway 이력을 적용하는 `NicknameMigrationMySqlTest`와 인증·마이페이지 동시 갱신을 확인하는 `NicknameConcurrencyMySqlTest`를 순서대로 필수 실행한다. 로컬에서는 격리된 임시 컨테이너를 만드는 `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-nickname-mysql.ps1 -Image mysql:8.0.42`로 같은 검사를 실행한다. 일반 `verify`는 MySQL 환경 변수가 없으면 해당 통합 테스트를 건너뛰므로, 일반 `verify`만으로 DB 제약이나 동시성을 검증했다고 주장하지 않는다.
 
