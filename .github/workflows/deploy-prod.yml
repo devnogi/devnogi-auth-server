@@ -15,8 +15,28 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # 빠른 개선을 위한 dev 브랜치 운영 배포 허용: 2026-12-31까지 (KST).
+  preflight:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check branch and temporary dev deployment window
+        shell: bash
+        run: |
+          case "$GITHUB_REF" in
+            refs/heads/main) ;;
+            refs/heads/dev)
+              if [ "$(date -u +%s)" -ge 1798729200 ]; then
+                echo 'dev production deployment expired at 2027-01-01 00:00 KST' >&2
+                exit 1
+              fi
+              ;;
+            *) echo "Production deployment is not allowed from $GITHUB_REF" >&2; exit 1 ;;
+          esac
+
   build-and-push:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')
+    needs: preflight
     environment: production
     runs-on: ubuntu-latest
     permissions:
@@ -26,6 +46,15 @@ jobs:
       digest: ${{ steps.build.outputs.digest }}
 
     steps:
+      - name: Recheck temporary dev deployment window after build approval
+        if: github.ref == 'refs/heads/dev'
+        shell: bash
+        run: |
+          if [ "$(date -u +%s)" -ge 1798729200 ]; then
+            echo 'dev production deployment expired after build approval' >&2
+            exit 1
+          fi
+
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -47,13 +76,22 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Recheck dev window before publishing image
+        if: github.ref == 'refs/heads/dev'
+        shell: bash
+        run: |
+          if [ "$(date -u +%s)" -ge 1798729200 ]; then
+            echo 'dev production deployment expired before image publication' >&2
+            exit 1
+          fi
+
       - name: Build and push Docker image
         id: build
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/auth-server:${{ github.sha }}
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/auth-server:${{ github.ref == 'refs/heads/dev' && format('dev-{0}', github.sha) || github.sha }}
 
       - name: Verify pushed image digest
         env:
@@ -67,14 +105,23 @@ jobs:
           docker buildx imagetools inspect "$IMAGE_REF" >/dev/null
 
   deploy:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')
     environment: production
-    needs: build-and-push
+    needs: [preflight, build-and-push]
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: read
     steps:
+      - name: Recheck temporary dev deployment window after deploy approval
+        if: github.ref == 'refs/heads/dev'
+        shell: bash
+        run: |
+          if [ "$(date -u +%s)" -ge 1798729200 ]; then
+            echo 'dev production deployment expired after deploy approval' >&2
+            exit 1
+          fi
+
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -91,6 +138,15 @@ jobs:
           printf '%s' "$GHCR_TOKEN" > .deploy-secrets/.ghcr-token
           test -s .deploy-secrets/.env.prod
           test -s .deploy-secrets/.ghcr-token
+
+      - name: Recheck dev window before first SSH connection
+        if: github.ref == 'refs/heads/dev'
+        shell: bash
+        run: |
+          if [ "$(date -u +%s)" -ge 1798729200 ]; then
+            echo 'dev production deployment expired before server access' >&2
+            exit 1
+          fi
 
       - name: Prepare staging directory on Server 2
         uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
@@ -155,6 +211,10 @@ jobs:
               esac
             fi
 
+            if [ '${{ github.ref }}' = 'refs/heads/dev' ] && [ "$(date -u +%s)" -ge 1798729200 ]; then
+              echo 'dev production deployment expired before container update' >&2
+              exit 1
+            fi
             docker compose -p auth -f docker-compose-auth-prod.yml --env-file "$DEPLOY_ENV_FILE" up -d --no-deps --wait --wait-timeout 120 auth-server
             attempt=0
             until curl --fail --silent --max-time 3 --output /dev/null "http://127.0.0.1:${server_port}/api/auth/random-nickname"; do

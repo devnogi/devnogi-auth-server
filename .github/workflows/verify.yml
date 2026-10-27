@@ -93,4 +93,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Validate manual deployment guards
+        run: node --test scripts/test-deploy-prod-workflow.mjs
       - run: node scripts/secret-scan.mjs
