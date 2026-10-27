@@ -42,7 +42,7 @@ PR 필수 검사 이름은 verify와 secret-scan이다. 원격 브랜치 보호�
 
 ## 로컬 이메일 로그인
 
-샘플은 `DB_SCHEMA=auth`를 사용한다. 기존 Flyway migration이 `auth.roles`를 참조하므로 공통 infra의 로컬 bootstrap으로 auth 스키마와 로컬 앱 사용자 권한을 먼저 준비한다. 이미 있는 volume에는 infra의 비파괴 bootstrap 절차를 사용하고 volume을 삭제하거나 기존 migration을 수정하지 않는다. 기존 `.env.local`의 `DB_SCHEMA=devnogi`도 확인한다.
+샘플은 `DB_SCHEMA=auth`를 사용한다. 공통 infra의 로컬 bootstrap으로 auth 스키마와 로컬 앱 사용자 권한을 먼저 준비한다. 빈 auth DB는 `B20250721224045__auth_schema_baseline.sql`부터 초기화하고 이후 버전의 migration을 적용한다. 기존 `devnogi` DB는 원본 `V20250721224045__insert_default_data.sql`의 checksum을 유지한 채 이후 migration을 적용한다. 이미 있는 volume에는 infra의 비파괴 bootstrap 절차를 사용하고 volume을 삭제하거나 기존 migration을 수정하지 않는다. 기존 `.env.local`의 `DB_SCHEMA=devnogi`도 확인한다. 배포 대상 DB의 Flyway 이력이 변경된 `auth.roles` 버전의 checksum을 기록했다면 이 경로와 호환되지 않으므로, 데이터 변경이나 `flyway repair` 없이 적용을 멈추고 별도 이행 설계를 검토한다.
 
 auth와 gateway의 `.env.example`에는 동일한 공개 합성 Base64 키가 있다. 디코딩 후 32바이트 이상이어야 하며 이 키는 로컬 검증 전용이다. `JWT_ACCESS_TOKEN_VALIDITY=3600000`, `JWT_REFRESH_TOKEN_VALIDITY=86400000`은 milliseconds다. 쿠키 Max-Age는 각각 3600/86400 seconds로 변환한다. 환경 변수 생략 시 과거 fallback 숫자 3600/86400 milliseconds는 그대로이므로 로컬 실행에서 명시 값을 빠뜨리지 않는다.
 
