@@ -257,7 +257,7 @@ class AuthControllerTest {
       .andExpect(status().isOk())
       .andExpect(jsonPath("$.code").value("COMMON_SUCCESS"))
       .andExpect(jsonPath("$.data").value(expectedNickname));
-      
+
     verify(userService).generateRandomNickname();
   }
 
