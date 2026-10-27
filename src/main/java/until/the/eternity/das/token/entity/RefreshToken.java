@@ -1,20 +1,8 @@
 package until.the.eternity.das.token.entity;
 
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
-import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import jakarta.persistence.*;
+import lombok.*;
 import org.hibernate.annotations.Comment;
 import until.the.eternity.das.user.entity.User;
 
@@ -38,7 +26,7 @@ public class RefreshToken {
   @Comment("사용자 ID")
   private User user;
 
-  @Column(nullable = false, length = 512)
+  @Column(nullable = false, length = 8192)
   @Comment("JWT Refresh Token")
   private String token;
 

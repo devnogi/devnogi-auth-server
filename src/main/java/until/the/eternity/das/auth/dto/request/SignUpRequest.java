@@ -23,8 +23,15 @@ public record SignUpRequest(
   @NotBlank(message = "닉네임을 입력해주세요.")
   String nickname,
 
+  @Schema(description = "랜덤 닉네임 후보 발급 티켓")
+  String nicknameTicket,
+
   @Schema(description = "프로필 이미지 파일")
   MultipartFile file
 ) {
+
+  public SignUpRequest(String email, String password, String nickname, MultipartFile file) {
+    this(email, password, nickname, null, file);
+  }
 
 }

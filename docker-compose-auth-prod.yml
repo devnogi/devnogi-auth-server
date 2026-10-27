@@ -1,0 +1,28 @@
+services:
+  auth-server:
+    image: ${IMAGE_REF:?Set the immutable GHCR image digest}
+    container_name: auth-server
+    ports:
+      - "${SERVER_PORT}:${SERVER_PORT}"
+    env_file:
+      - ${DEPLOY_ENV_FILE:-.env.prod}
+    environment:
+      - JAVA_OPTS=-Xms256m -Xmx512m
+      - SPRING_CLOUD_AWS_S3_ENDPOINT=${MINIO_ENDPOINT}
+      - SPRING_PROFILES_ACTIVE=prod
+    deploy:
+      resources:
+        limits:
+          memory: 750M
+    restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - infra_devnogi-network
+
+networks:
+  infra_devnogi-network:
+    external: true

@@ -35,9 +35,19 @@ out/
 
 ### VS Code ###
 .vscode/
+.DS_Store
+dev_rules/
 
 ### Spring Boot ###
 application.yml
 
 ### Docker-Compose ###
 .env
+.env.local
+.env.dev
+.env.prod
+# Local credentials; share only synthetic examples
+.env*
+!.env.example
+!.env.sample
+!.env.local.sample

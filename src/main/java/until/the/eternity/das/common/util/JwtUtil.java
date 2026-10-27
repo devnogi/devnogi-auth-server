@@ -1,10 +1,6 @@
 package until.the.eternity.das.common.util;
 
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.ExpiredJwtException;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.MalformedJwtException;
-import io.jsonwebtoken.UnsupportedJwtException;
+import io.jsonwebtoken.*;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import jakarta.servlet.http.Cookie;
@@ -24,6 +20,7 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 @Slf4j
 @Component
@@ -63,6 +60,7 @@ public class JwtUtil {
     Map<String, Object> claims = new HashMap<>();
     claims.put("userId", user.getId());
     claims.put("type", "REFRESH");
+    claims.put("jti", UUID.randomUUID().toString());
 
     return createToken(claims, user.getEmail(), jwtConstant.getRefreshTokenValidity());
   }

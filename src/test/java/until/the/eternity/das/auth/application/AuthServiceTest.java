@@ -15,9 +15,13 @@ import until.the.eternity.das.auth.dto.request.SignUpRequest;
 import until.the.eternity.das.auth.dto.response.LoginResultResponse;
 import until.the.eternity.das.auth.dto.response.SignUpResponse;
 import until.the.eternity.das.common.application.S3Service;
+import until.the.eternity.das.common.application.KafkaProducerService;
 import until.the.eternity.das.common.exception.CustomException;
 import until.the.eternity.das.common.exception.GlobalExceptionCode;
 import until.the.eternity.das.common.util.JwtUtil;
+import until.the.eternity.das.login.entity.AccountLock;
+import until.the.eternity.das.login.entity.AccountLockRepository;
+import until.the.eternity.das.login.entity.LoginHistoryRepository;
 import until.the.eternity.das.role.entity.Role;
 import until.the.eternity.das.role.entity.RoleRepository;
 import until.the.eternity.das.role.entity.enums.Name;
@@ -25,14 +29,16 @@ import until.the.eternity.das.token.application.TokenService;
 import until.the.eternity.das.user.entity.User;
 import until.the.eternity.das.user.entity.UserRepository;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -54,7 +60,15 @@ class AuthServiceTest {
   @Mock
   private TokenService tokenService;
   @Mock
-  private S3Service s3Service; // S3Service Mock 추가
+  private S3Service s3Service;
+  @Mock
+  private KafkaProducerService kafkaProducerService;
+  @Mock
+  private NicknameCandidateService nicknameCandidateService;
+  @Mock
+  private AccountLockRepository accountLockRepository;
+  @Mock
+  private LoginHistoryRepository loginHistoryRepository;
 
   private SignUpRequest signUpRequest;
   private LoginRequest loginRequest;
@@ -73,7 +87,7 @@ class AuthServiceTest {
     );
 
     // SignUpRequest에 mockFile 추가, 비밀번호 형식 준수
-    signUpRequest = new SignUpRequest("test@test.com", "password123!", "testuser", mockFile);
+    signUpRequest = new SignUpRequest("test@test.com", "password123!", "강인한 인간 ABC12", "issued-ticket", mockFile);
     loginRequest = new LoginRequest("test@test.com", "password123!");
     userRole = Role.builder()
       .id(1L)
@@ -109,7 +123,7 @@ class AuthServiceTest {
       authConverter.fromUserSignUpRequestToUser(signUpRequest, encodedPassword, userRole, profileImageUrl)).thenReturn(
       user);
     // User 저장 Mocking
-    when(userRepository.save(any(User.class))).thenReturn(user);
+    when(userRepository.saveAndFlush(any(User.class))).thenReturn(user);
     // User -> SignUpResponse 변환 Mocking
     when(authConverter.fromUserToUserSignUpResponse(any(User.class))).thenReturn(
       SignUpResponse.builder()
@@ -123,6 +137,7 @@ class AuthServiceTest {
     // then
     assertNotNull(response);
     assertEquals(user.getId(), response.id());
+    verify(nicknameCandidateService).validateForChange(signUpRequest.nickname(), signUpRequest.nicknameTicket());
   }
 
   @Test
@@ -151,12 +166,35 @@ class AuthServiceTest {
     assertEquals(GlobalExceptionCode.NICKNAME_ALREADY_EXISTS, exception.getCode());
   }
 
+  @Test
+  void signupAndAdminSignupRejectInvalidTicketBeforePersistenceOrKafka() {
+    doThrow(new CustomException(GlobalExceptionCode.INVALID_NICKNAME_TICKET))
+      .when(nicknameCandidateService).validateForChange(signUpRequest.nickname(), signUpRequest.nicknameTicket());
+    when(roleRepository.findByName(Name.USER)).thenReturn(Optional.of(userRole));
+    Role adminRole = Role.builder().id(2L).name(Name.ADMIN).build();
+    when(roleRepository.findByName(Name.ADMIN)).thenReturn(Optional.of(adminRole));
+
+    assertEquals(GlobalExceptionCode.INVALID_NICKNAME_TICKET,
+      assertThrows(CustomException.class, () -> authService.signUpUser(signUpRequest)).getCode());
+    assertEquals(GlobalExceptionCode.INVALID_NICKNAME_TICKET,
+      assertThrows(CustomException.class, () -> authService.signUpAdmin(signUpRequest)).getCode());
+    verifyNoInteractions(s3Service, kafkaProducerService, authConverter);
+  }
+
 
   @Test
   @DisplayName("로그인 성공 테스트")
   void login_Success() {
     // given
-    when(userRepository.findByEmail(loginRequest.email())).thenReturn(Optional.of(user));
+    AccountLock accountLock = AccountLock.builder()
+      .user(user)
+      .userId(user.getId())
+      .failedAttempts(0)
+      .updatedAt(LocalDateTime.now())
+      .build();
+
+    when(userRepository.findByEmailForUpdate(loginRequest.email())).thenReturn(Optional.of(user));
+    when(accountLockRepository.findById(user.getId())).thenReturn(Optional.of(accountLock));
     when(bCryptPasswordEncoder.matches(loginRequest.password(), user.getPasswordHash())).thenReturn(true);
     when(jwtUtil.generateAccessToken(user)).thenReturn("access-token");
     when(jwtUtil.generateRefreshToken(user)).thenReturn("refresh-token");
@@ -164,7 +202,7 @@ class AuthServiceTest {
       .saveNewRefreshToken(user.getId(), "refresh-token");
 
     // when
-    LoginResultResponse response = authService.login(loginRequest);
+    LoginResultResponse response = authService.login(loginRequest, "127.0.0.1", "TestAgent");
 
     // then
     assertNotNull(response);
@@ -177,10 +215,11 @@ class AuthServiceTest {
   @DisplayName("로그인 실패 - 사용자를 찾을 수 없음")
   void login_Fail_UserNotFound() {
     // given
-    when(userRepository.findByEmail(loginRequest.email())).thenReturn(Optional.empty());
+    when(userRepository.findByEmailForUpdate(loginRequest.email())).thenReturn(Optional.empty());
 
     // when & then
-    CustomException exception = assertThrows(CustomException.class, () -> authService.login(loginRequest));
+    CustomException exception = assertThrows(CustomException.class,
+      () -> authService.login(loginRequest, "127.0.0.1", "TestAgent"));
     assertEquals(GlobalExceptionCode.USER_NOT_EXISTS, exception.getCode());
   }
 
@@ -188,11 +227,35 @@ class AuthServiceTest {
   @DisplayName("로그인 실패 - 잘못된 비밀번호")
   void login_Fail_InvalidPassword() {
     // given
-    when(userRepository.findByEmail(loginRequest.email())).thenReturn(Optional.of(user));
+    AccountLock accountLock = AccountLock.builder()
+      .user(user)
+      .userId(user.getId())
+      .failedAttempts(0)
+      .updatedAt(LocalDateTime.now())
+      .build();
+
+    when(userRepository.findByEmailForUpdate(loginRequest.email())).thenReturn(Optional.of(user));
+    when(accountLockRepository.findById(user.getId())).thenReturn(Optional.of(accountLock));
     when(bCryptPasswordEncoder.matches(loginRequest.password(), user.getPasswordHash())).thenReturn(false);
 
     // when & then
-    CustomException exception = assertThrows(CustomException.class, () -> authService.login(loginRequest));
+    CustomException exception = assertThrows(CustomException.class,
+      () -> authService.login(loginRequest, "127.0.0.1", "TestAgent"));
     assertEquals(GlobalExceptionCode.INVALID_PASSWORD, exception.getCode());
+  }
+
+  @Test
+  void login_Fail_LockedAccount() {
+    AccountLock accountLock = AccountLock.builder().user(user).userId(user.getId())
+      .failedAttempts(5).lockedUntil(LocalDateTime.now().plusMinutes(5))
+      .updatedAt(LocalDateTime.now()).build();
+    when(userRepository.findByEmailForUpdate(loginRequest.email())).thenReturn(Optional.of(user));
+    when(accountLockRepository.findById(user.getId())).thenReturn(Optional.of(accountLock));
+
+    CustomException exception = assertThrows(CustomException.class,
+      () -> authService.login(loginRequest, "127.0.0.1", "TestAgent"));
+
+    assertEquals(GlobalExceptionCode.ACCOUNT_LOCKED, exception.getCode());
+    org.mockito.Mockito.verifyNoInteractions(jwtUtil, tokenService, bCryptPasswordEncoder);
   }
 }

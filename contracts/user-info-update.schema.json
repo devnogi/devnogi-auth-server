@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/devnogi/devnogi-auth-server/contracts/user-info-update.schema.json",
+  "title": "USER_INFO_UPDATE_EVENT",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "integer",
+      "description": "사용자 식별자"
+    },
+    "nickname": {
+      "type": "string",
+      "minLength": 1,
+      "description": "표시 닉네임"
+    },
+    "profileImageUrl": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "프로필 이미지 URL, 없으면 null"
+    },
+    "serverName": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "description": "마비노기 서버명. 일반/소셜 가입 직후 인증 전에는 null; 필드는 payload에 포함된다."
+    }
+  },
+  "required": [
+    "id",
+    "nickname",
+    "serverName"
+  ],
+  "additionalProperties": true
+}

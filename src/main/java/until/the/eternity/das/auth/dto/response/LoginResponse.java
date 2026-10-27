@@ -6,13 +6,17 @@ public record LoginResponse(
   Long userId,
   String nickname,
   String email,
-  String profileImageUrl
+  String profileImageUrl,
+  String role
 ) {
   public static LoginResponse from(User user) {
     return new LoginResponse(
       user.getId(),
       user.getNickname(),
       user.getEmail(),
-      user.getProfileImageUrl());
+      user.getProfileImageUrl(),
+      user.getRole()
+        .getName()
+        .name());
   }
 }

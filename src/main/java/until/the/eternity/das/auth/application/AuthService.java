@@ -4,12 +4,14 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import until.the.eternity.das.auth.dto.request.LoginRequest;
 import until.the.eternity.das.auth.dto.request.SignUpRequest;
 import until.the.eternity.das.auth.dto.response.LoginResultResponse;
 import until.the.eternity.das.auth.dto.response.SignUpResponse;
+import until.the.eternity.das.common.application.KafkaProducerService;
 import until.the.eternity.das.common.application.S3Service;
 import until.the.eternity.das.common.exception.CustomException;
 import until.the.eternity.das.common.exception.GlobalExceptionCode;
@@ -23,6 +25,7 @@ import until.the.eternity.das.role.entity.Role;
 import until.the.eternity.das.role.entity.RoleRepository;
 import until.the.eternity.das.role.entity.enums.Name;
 import until.the.eternity.das.token.application.TokenService;
+import until.the.eternity.das.user.dto.response.UserInfoUpdateEvent;
 import until.the.eternity.das.user.entity.User;
 import until.the.eternity.das.user.entity.UserRepository;
 
@@ -42,12 +45,17 @@ public class AuthService {
   private final JwtUtil jwtUtil;
   private final TokenService tokenService;
   private final S3Service s3Service;
+  private final KafkaProducerService kafkaProducerService;
+  private final NicknameCandidateService nicknameCandidateService;
 
+  @Transactional
+  public void logout(Long userId) {
+    tokenService.revokeAllUserTokens(userId);
+  }
 
   @Transactional
   public SignUpResponse signUpUser(SignUpRequest request) {
 
-    // 기본 USER Role이 존재하는지 확인
     Role userRole = roleRepository.findByName(Name.USER)
       .orElseThrow(() -> {
         log.error("USER Role이 DB에 존재하지 않습니다.");
@@ -61,7 +69,6 @@ public class AuthService {
   @Transactional
   public SignUpResponse signUpAdmin(SignUpRequest request) {
 
-    // Admin Role이 존재하는지 확인
     Role adminRole = roleRepository.findByName(Name.ADMIN)
       .orElseThrow(() -> {
         log.error("ADMIN Role이 DB에 존재하지 않습니다.");
@@ -71,16 +78,16 @@ public class AuthService {
     return signUp(request, adminRole);
   }
 
-  @Transactional
+  @Transactional(noRollbackFor = LoginRejectedException.class)
   public LoginResultResponse login(LoginRequest request, String clientIp, String userAgent) {
-    User user = userRepository.findByEmail(request.email())
+    // Lock before account-lock/history writes, matching refresh and logout lock order.
+    User user = userRepository.findByEmailForUpdate(request.email())
       .orElseThrow(() -> new CustomException(GlobalExceptionCode.USER_NOT_EXISTS));
 
     AccountLock accountLock = accountLockRepository.findById(user.getId())
       .orElseGet(() -> {
         AccountLock newLock = AccountLock.builder()
           .user(user)
-          .userId(user.getId())
           .failedAttempts(0)
           .updatedAt(LocalDateTime.now())
           .build();
@@ -91,12 +98,12 @@ public class AuthService {
       .isAfter(LocalDateTime.now())) {
       // 잠금 상태인 경우 이력 저장 후 예외 발생
       saveLoginHistory(user, false, Reason.LOCKED_ACCOUNT, clientIp, userAgent); // Reason에 LOCKED_ACCOUNT가 없으면 추가 필요
-      throw new CustomException(GlobalExceptionCode.ACCOUNT_LOCKED); // GlobalExceptionCode에 추가 필요
+      throw LoginRejectedException.accountLocked();
     }
 
     if (!bCryptPasswordEncoder.matches(request.password(), user.getPasswordHash())) {
       handleLoginFailure(user, accountLock, clientIp, userAgent);
-      throw new CustomException(GlobalExceptionCode.INVALID_PASSWORD);
+      throw LoginRejectedException.invalidPassword();
     }
 
     handleLoginSuccess(user, accountLock, clientIp, userAgent);
@@ -154,24 +161,19 @@ public class AuthService {
   }
 
   private SignUpResponse signUp(SignUpRequest request, Role role) {
-    // 이메일 형식 유효성 검증
     isValidEmailFormat(request.email());
-    // 이메일 중복 검증
     if (userRepository.existsByEmail(request.email())) {
       throw new CustomException(GlobalExceptionCode.EMAIL_ALREADY_EXISTS);
     }
 
-    // 닉네임 형식 유효성 검증
+    nicknameCandidateService.validateForChange(request.nickname(), request.nicknameTicket());
     isValidNicknameFormat(request.nickname());
-    // 닉네임 중복 검증
     if (userRepository.existsByNickname(request.nickname())) {
       throw new CustomException(GlobalExceptionCode.NICKNAME_ALREADY_EXISTS);
     }
 
-    // 비밀번호 유효성 검증
     isValidPasswordFormat(request.password());
 
-    // 프로필 이미지 등록
     String profileImageUrl = null;
     if (request.file() != null) {
       String dirName = "profile";
@@ -181,7 +183,19 @@ public class AuthService {
     User user = authConverter.fromUserSignUpRequestToUser(request,
       bCryptPasswordEncoder.encode(request.password()), role, profileImageUrl);
 
-    userRepository.save(user);
+    try {
+      userRepository.saveAndFlush(user);
+    } catch (DataIntegrityViolationException e) {
+      throw new CustomException(GlobalExceptionCode.NICKNAME_ALREADY_EXISTS);
+    }
+
+    try {
+      UserInfoUpdateEvent kafKaEvent = UserInfoUpdateEvent.of(user);
+
+      kafkaProducerService.sendUserInfoUpdateEvent(kafKaEvent);
+    } catch (Exception e) {
+      throw new CustomException(GlobalExceptionCode.USER_INFO_UPDATE_FAILED);
+    }
 
     return authConverter.fromUserToUserSignUpResponse(user);
   }
@@ -206,7 +220,7 @@ public class AuthService {
   }
 
   public void isValidNicknameFormat(@NotBlank String nickname) {
-    if (nickname == null || !nickname.matches("^[가-힣a-zA-Z0-9]{2,20}$")) {
+    if (nickname == null || !nickname.matches("^[가-힣a-zA-Z0-9 ]{2,20}$")) {
       throw new CustomException(GlobalExceptionCode.INVALID_NICKNAME_FORMAT);
     }
   }

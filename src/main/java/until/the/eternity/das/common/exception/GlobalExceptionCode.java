@@ -15,13 +15,19 @@ public enum GlobalExceptionCode implements ExceptionCode {
   // JWT TOKEN
   INVALID_TOKEN(UNAUTHORIZED, "유효하지 않는 토큰입니다."),
   EXPIRED_TOKEN(UNAUTHORIZED, "만료된 토큰입니다."),
+  INVALID_REFRESH_TOKEN(UNAUTHORIZED, "유효하지 않은 리프레시 토큰입니다."),
 
   // AUTH
   EMAIL_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 가입되어 있는 이메일입니다."),
   NICKNAME_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 존재하는 닉네임입니다."),
+  NICKNAME_TICKET_REQUIRED(HttpStatus.BAD_REQUEST, "페이지를 새로고침해 최신 화면에서 랜덤 닉네임을 다시 발급받아주세요."),
+  INVALID_NICKNAME_TICKET(HttpStatus.BAD_REQUEST, "새 랜덤 닉네임을 발급받아 다시 시도해주세요."),
+  EXPIRED_NICKNAME_TICKET(HttpStatus.BAD_REQUEST, "닉네임 발급 시간이 만료되었습니다. 다시 발급받아주세요."),
+  NICKNAME_GENERATION_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "닉네임을 발급할 수 없습니다. 잠시 후 다시 시도해주세요."),
   INVALID_EMAIL_FORMAT(HttpStatus.BAD_REQUEST, "유효하지 않은 이메일 형식입니다."),
   INVALID_NICKNAME_FORMAT(HttpStatus.BAD_REQUEST,
-    "유효하지 않은 닉네임 형식입니다. 닉네임은 2자 이상 20자 이하이면서 영문, 숫자, 한글만 사용 가능합니다."),
+    "유효하지 않은 닉네임 형식입니다. 닉네임은 2자 이상 20자 이하이면서 영문, 숫자, 한글 및 공백만 사용 가능합니다."),
+  INVALID_NICKNAME_COMBINATION(HttpStatus.BAD_REQUEST, "유효하지 않은 닉네임 조합입니다."),
   INVALID_PASSWORD_FORMAT(HttpStatus.BAD_REQUEST,
     "유효하지 않은 비밀번호 형식입니다. 비밀번호는 8자 이상 20자 이하이면서 1개 이상의 알파벳, 숫자, 특수문자로 구성되어야 합니다."),
   USER_NOT_EXISTS(HttpStatus.BAD_REQUEST, "존재하지 않는 회원입니다"),
@@ -38,9 +44,19 @@ public enum GlobalExceptionCode implements ExceptionCode {
 
   // User
   USER_INFO_UPDATE_FAILED(INTERNAL_SERVER_ERROR, "사용자 정보 수정에 실패했습니다. 잠시 후 다시 시도해주세요."),
+  USER_VERIFICATION_REQUIRED_FOR_IDENTITY_UPDATE(HttpStatus.BAD_REQUEST, "인증된 계정은 닉네임 또는 서버명을 변경하기 전에 재인증이 필요합니다."),
+  USER_VERIFICATION_GENERATE_FAILED(INTERNAL_SERVER_ERROR, "인증 코드 생성에 실패했습니다. 잠시 후 다시 시도해주세요."),
+  USER_VERIFICATION_TOKEN_NOT_FOUND(HttpStatus.BAD_REQUEST, "발급된 인증 토큰이 존재하지 않습니다."),
+  USER_VERIFICATION_TOKEN_ALREADY_EXISTS(HttpStatus.BAD_REQUEST, "이미 유효한 인증 토큰이 존재합니다. 재발급을 이용해주세요."),
+  USER_VERIFICATION_COOLDOWN_ACTIVE(HttpStatus.BAD_REQUEST, "최근 7일 이내 인증 성공 이력이 있어 토큰 발급이 불가능합니다."),
+  USER_VERIFICATION_HISTORY_LIMIT_INVALID(HttpStatus.BAD_REQUEST, "인증 내역 조회 limit는 1 이상 100 이하의 값만 허용됩니다."),
+  USER_VERIFICATION_INVALID(HttpStatus.BAD_REQUEST, "유효하지 않거나 만료된 인증 코드입니다."),
 
   // OAUTH
-  NOT_SUPPORTED_PROVIDER(HttpStatus.BAD_REQUEST, "지원하지 않는 소셜로그인입니다");
+  NOT_SUPPORTED_PROVIDER(HttpStatus.BAD_REQUEST, "지원하지 않는 소셜로그인입니다"),
+  OAUTH_EXCHANGE_INVALID(HttpStatus.BAD_REQUEST, "소셜 로그인 인증 시간이 만료되었습니다. 다시 로그인해주세요."),
+  OAUTH_SIGNUP_PROOF_REQUIRED(HttpStatus.BAD_REQUEST, "페이지를 새로고침하고 소셜 로그인을 다시 진행해주세요."),
+  OAUTH_SIGNUP_PROOF_INVALID(HttpStatus.BAD_REQUEST, "소셜 로그인 인증 시간이 만료되었습니다. 다시 로그인해주세요.");
 
   private final HttpStatus status;
   private final String message;

@@ -7,12 +7,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import until.the.eternity.das.common.response.CommonResponse;
 import until.the.eternity.das.user.application.UserService;
 import until.the.eternity.das.user.dto.request.UserInfoUpdateRequest;
@@ -82,11 +77,4 @@ public class UserController {
   ) {
     return ResponseEntity.ok(CommonResponse.success(userService.withdrawUser(id)));
   }
-
-  // Todo 비밀번호 변경 기능 만들기
-//  @PatchMapping("password")
-//  public ResponseEntity<CommonResponse<Boolean>> updatePassword() {
-//    return null;
-//  }
-
 }

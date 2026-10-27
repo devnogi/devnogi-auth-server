@@ -6,6 +6,7 @@ import org.springframework.security.oauth2.core.user.OAuth2User;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -26,11 +27,11 @@ public class OauthUserDTO implements OAuth2User {
 
   @Override
   public Map<String, Object> getAttributes() {
-    return Map.of(
-      "providerUserId", providerUserId,
-      "email", email,
-      "provider", provider
-    );
+    Map<String, Object> attributes = new HashMap<>();
+    attributes.put("providerUserId", providerUserId);
+    attributes.put("email", email);
+    attributes.put("provider", provider);
+    return Collections.unmodifiableMap(attributes);
   }
 
   @Override

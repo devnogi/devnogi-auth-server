@@ -1,21 +1,7 @@
 package until.the.eternity.das.user.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
-import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import jakarta.persistence.*;
+import lombok.*;
 import org.hibernate.annotations.Comment;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -46,7 +32,7 @@ public class User {
   @Comment("암호화된 비밀번호 (소셜로그인 회원은 null)")
   private String passwordHash;
 
-  @Column(nullable = false, unique = true, length = 50)
+  @Column(nullable = false, length = 50)
   @Comment("사용자 닉네임 (커뮤니티 표시용)")
   private String nickname;
 
@@ -82,6 +68,18 @@ public class User {
   @Enumerated(EnumType.STRING)
   private InactivatedType inactivatedType;
 
+  @Column(name = "server_name", length = 20)
+  @Comment("게임 서버명")
+  private String serverName;
+
+  @Column(name = "is_verified", nullable = false)
+  @Comment("사용자 인증 상태")
+  private boolean verified;
+
+  @Column(name = "verified_at")
+  @Comment("최근 인증 성공 시각")
+  private LocalDateTime verifiedAt;
+
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "role_id")
   private Role role;
@@ -102,6 +100,20 @@ public class User {
   public void updateUserStatus(Status status) {
     this.status = status;
     this.inactivatedAt = LocalDateTime.now();
+  }
+
+  public void updateServerName(String serverName) {
+    this.serverName = serverName;
+  }
+
+  public void updateVerificationStatus(boolean verified, LocalDateTime verifiedAt) {
+    this.verified = verified;
+    this.verifiedAt = verifiedAt;
+  }
+
+  public void updateGameProfile(String nickname, String serverName) {
+    this.nickname = nickname;
+    this.serverName = serverName;
   }
 
 }

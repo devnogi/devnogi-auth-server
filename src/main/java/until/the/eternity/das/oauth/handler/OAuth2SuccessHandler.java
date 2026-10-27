@@ -1,31 +1,27 @@
 package until.the.eternity.das.oauth.handler;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
-import until.the.eternity.das.common.response.CommonResponse;
 import until.the.eternity.das.common.util.CookieUtil;
 import until.the.eternity.das.common.util.JwtUtil;
 import until.the.eternity.das.oauth.dto.OauthUserDTO;
 import until.the.eternity.das.oauth.entity.OauthUser;
 import until.the.eternity.das.oauth.entity.OauthUserRepository;
+import until.the.eternity.das.oauth.service.OAuthExchangeService;
 import until.the.eternity.das.token.application.TokenService;
 import until.the.eternity.das.user.entity.User;
 import until.the.eternity.das.user.entity.UserRepository;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.Optional;
 
-@Slf4j
 @Component
 @RequiredArgsConstructor
 public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
@@ -34,14 +30,24 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
   private final OauthUserRepository oauthUserRepository;
   private final JwtUtil jwtUtil;
   private final CookieUtil cookieUtil;
-  private final ObjectMapper objectMapper;
   private final TokenService tokenService;
+  private final OAuthExchangeService exchangeService;
+
+  @Value("${app.oauth.redirect-uri:https://www.memonogi.com/social-callback}")
+  private String frontendCallbackUrl;
 
   @Override
   public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
-                                      Authentication authentication) throws IOException, ServletException {
+                                      Authentication authentication) throws IOException {
 
     OauthUserDTO oauthUserDTO = getOauthUserDTO(authentication);
+
+    if (oauthUserDTO.getProvider() == null || oauthUserDTO.getProvider().isBlank()
+      || oauthUserDTO.getProviderUserId() == null || oauthUserDTO.getProviderUserId().isBlank()
+      || "null".equalsIgnoreCase(oauthUserDTO.getProviderUserId().trim())) {
+      redirectToFrontendWithError(response, "oauth_identity_unavailable");
+      return;
+    }
 
     Optional<OauthUser> oauthUserOpt = oauthUserRepository.findByProviderAndProviderUserIdWithUserAndRoles(
       oauthUserDTO.getProvider(), oauthUserDTO.getProviderUserId());
@@ -49,37 +55,27 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
     if (oauthUserOpt.isPresent()) {
       User user = oauthUserOpt.get()
         .getUser();
-      issueTokensAndSendSuccessResponse(response, user);
+      redirectWithSuccess(response, user);
       return;
     }
 
     if (oauthUserDTO.getEmail() != null) {
       Optional<User> userOpt = userRepository.findByEmail(oauthUserDTO.getEmail());
       if (userOpt.isPresent()) {
-        User existingUser = userOpt.get();
-        String existingProvider = oauthUserRepository.findByUser(existingUser)
-          .map(OauthUser::getProvider)
-          .orElse("LOCAL");
-
-        log.warn("이미 {} 계정으로 가입된 이메일({})로 소셜 로그인을 시도했습니다.", existingProvider, oauthUserDTO.getEmail());
-        writeJsonResponse(response, CommonResponse.error(
-          "DUPLICATE_PROVIDER",
-          "이미 " + existingProvider + " 계정으로 가입된 이메일입니다."
-        ));
+        redirectToFrontendWithError(response, "oauth_account_exists");
         return;
       }
     }
 
-    log.info("신규 소셜 사용자입니다. 추가 정보 입력이 필요합니다.");
+    if (oauthUserDTO.getEmail() == null || oauthUserDTO.getEmail().isBlank()) {
+      redirectToFrontendWithError(response, "oauth_identity_unavailable");
+      return;
+    }
 
-    writeJsonResponse(response, CommonResponse.success(
-      "SIGNUP_REQUIRED",
-      "소셜 로그인 최초 시도, 추가정보 입력 필요",
-      Map.of(
-        "provider", oauthUserDTO.getProvider(),
-        "providerUserId", oauthUserDTO.getProviderUserId()
-      )
-    ));
+    String binding = exchangeService.newBinding();
+    String code = exchangeService.issueSignupCode(oauthUserDTO, binding);
+    cookieUtil.createOAuthBindingCookie(response, binding);
+    redirectToFrontend(response, code);
   }
 
   private OauthUserDTO getOauthUserDTO(Authentication authentication) {
@@ -97,34 +93,44 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
     }
   }
 
-  private void issueTokensAndSendSuccessResponse(HttpServletResponse response, User user) throws IOException {
-    log.info("기존 회원 로그인 성공. JWT 토큰을 발급합니다. User ID: {}", user.getId());
+  /**
+   * 로그인 성공 시 JWT 토큰 발급 후 프론트엔드로 리다이렉트
+   */
+  private void redirectWithSuccess(HttpServletResponse response, User user) throws IOException {
     String accessToken = jwtUtil.generateAccessToken(user);
     String refreshToken = jwtUtil.generateRefreshToken(user);
 
     tokenService.saveNewRefreshToken(user.getId(), refreshToken);
 
-    cookieUtil.createAccessTokenCookie(response, accessToken);
-    cookieUtil.createRefreshTokenCookie(response, refreshToken);
-
     user.updateLastLoginAt();
     userRepository.save(user);
 
-    writeJsonResponse(response, CommonResponse.success(
-      "LOGIN_SUCCESS",
-      "로그인 성공",
-      Map.of(
-        "userId", user.getId(),
-        "nickname", user.getNickname(),
-        "email", user.getEmail()
-      )
-    ));
+    String binding = exchangeService.newBinding();
+    String code = exchangeService.issueLoginCode(binding);
+    cookieUtil.createAccessTokenCookie(response, accessToken);
+    cookieUtil.createRefreshTokenCookie(response, refreshToken);
+    cookieUtil.createOAuthBindingCookie(response, binding);
+    redirectToFrontend(response, code);
   }
 
-  private void writeJsonResponse(HttpServletResponse response, CommonResponse<?> apiResponse) throws IOException {
-    response.setContentType("application/json;charset=UTF-8");
-    response.setStatus(HttpServletResponse.SC_OK);
-    response.getWriter()
-      .write(objectMapper.writeValueAsString(apiResponse));
+  /**
+   * 프론트엔드 콜백 URL로 리다이렉트
+   */
+  private void redirectToFrontend(HttpServletResponse response, String code) throws IOException {
+    noStore(response);
+    response.sendRedirect(frontendCallbackUrl + "?code=" + code);
+  }
+
+  /**
+   * 에러 발생 시 프론트엔드로 리다이렉트
+   */
+  private void redirectToFrontendWithError(HttpServletResponse response, String errorCode) throws IOException {
+    noStore(response);
+    response.sendRedirect(frontendCallbackUrl + "?error=" + errorCode);
+  }
+
+  private void noStore(HttpServletResponse response) {
+    response.setHeader("Cache-Control", "no-store");
+    response.setHeader("Referrer-Policy", "no-referrer");
   }
 }

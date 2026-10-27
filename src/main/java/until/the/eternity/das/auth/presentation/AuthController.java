@@ -9,6 +9,9 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.CacheControl;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -17,15 +20,25 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import until.the.eternity.das.auth.application.AuthService;
+import until.the.eternity.das.auth.application.NicknameCandidateService;
 import until.the.eternity.das.auth.dto.request.LoginRequest;
 import until.the.eternity.das.auth.dto.request.SignUpRequest;
 import until.the.eternity.das.auth.dto.request.SocialSignUpRequest;
 import until.the.eternity.das.auth.dto.response.LoginResponse;
 import until.the.eternity.das.auth.dto.response.LoginResultResponse;
 import until.the.eternity.das.auth.dto.response.SignUpResponse;
+import until.the.eternity.das.auth.dto.response.NicknameCandidateResponse;
+import until.the.eternity.das.common.constant.JwtConstant;
+import until.the.eternity.das.common.exception.CustomException;
+import until.the.eternity.das.common.exception.GlobalExceptionCode;
 import until.the.eternity.das.common.response.CommonResponse;
 import until.the.eternity.das.common.util.CookieUtil;
+import until.the.eternity.das.common.util.JwtUtil;
 import until.the.eternity.das.oauth.service.SocialAuthService;
+import until.the.eternity.das.oauth.service.OAuthExchangeService;
+import jakarta.servlet.http.Cookie;
+import until.the.eternity.das.token.application.TokenService;
+import until.the.eternity.das.user.application.UserService;
 
 import static org.springframework.http.HttpStatus.CREATED;
 
@@ -35,8 +48,30 @@ import static org.springframework.http.HttpStatus.CREATED;
 public class AuthController {
 
   private final AuthService authService;
+  private final TokenService tokenService;
   private final SocialAuthService socialAuthService;
   private final CookieUtil cookieUtil;
+  private final JwtUtil jwtUtil;
+  private final JwtConstant jwtConstant;
+  private final UserService userService;
+  private final NicknameCandidateService nicknameCandidateService;
+  private final OAuthExchangeService oauthExchangeService;
+
+  public record OAuthExchangeRequest(String code) {}
+
+  @PostMapping("/oauth/exchange")
+  public ResponseEntity<CommonResponse<OAuthExchangeService.ExchangeResult>> exchangeOAuthCode(
+    @RequestBody OAuthExchangeRequest request, HttpServletRequest servletRequest,
+    HttpServletResponse servletResponse
+  ) {
+    oauthNoStore(servletResponse);
+    OAuthExchangeService.ExchangeResult result = oauthExchangeService.exchange(
+      request.code(), oauthBinding(servletRequest));
+    return ResponseEntity.ok()
+      .cacheControl(CacheControl.noStore())
+      .header("Referrer-Policy", "no-referrer")
+      .body(CommonResponse.success(result));
+  }
 
   /**
    * 회원 가입 API
@@ -94,12 +129,10 @@ public class AuthController {
   public ResponseEntity<CommonResponse<Boolean>> checkEmail(
     @RequestParam(name = "email") @NotBlank String email) {
 
-    // 이메일 형식 유효성 검증
     authService.isValidEmailFormat(email);
 
     boolean exists = authService.existsByEmail(email);
-    // exists == true면 이미 사용중인 이메일
-    return ResponseEntity.ok(CommonResponse.success(!exists)); // true = 사용 가능, false = 중복됨
+    return ResponseEntity.ok(CommonResponse.success(!exists));
   }
 
   /**
@@ -117,12 +150,10 @@ public class AuthController {
   public ResponseEntity<CommonResponse<Boolean>> checkNickname(
     @RequestParam(name = "nickname") @NotBlank String nickname) {
 
-    // 닉네임 유효성 검증
     authService.isValidNicknameFormat(nickname);
 
     boolean exists = authService.existsByNickname(nickname);
-    // exists == true면 이미 사용중인 닉네임
-    return ResponseEntity.ok(CommonResponse.success(!exists)); // true = 사용 가능, false = 중복됨
+    return ResponseEntity.ok(CommonResponse.success(!exists));
   }
 
   /**
@@ -140,11 +171,61 @@ public class AuthController {
     responseCode = "201",
     content = @Content(schema = @Schema(implementation = SignUpResponse.class)))
   public ResponseEntity<CommonResponse<SignUpResponse>> completeSocialSignup(
-    @ModelAttribute SocialSignUpRequest request
+    @ModelAttribute SocialSignUpRequest request,
+    HttpServletRequest servletRequest,
+    HttpServletResponse response
   ) {
-    SignUpResponse result = socialAuthService.completeSocialSignup(request);
+    oauthNoStore(response);
+    SignUpResponse result = socialAuthService.completeSocialSignup(request, oauthBinding(servletRequest));
+
+    LoginResultResponse loginResultResponse = socialAuthService.jwtForSocialSignUp(result.id());
+
+    cookieUtil.createAccessTokenCookie(response, loginResultResponse.accessToken());
+    cookieUtil.createRefreshTokenCookie(response, loginResultResponse.refreshToken());
+
     return ResponseEntity.status(CREATED)
       .body(CommonResponse.success(result));
+  }
+
+  private String oauthBinding(HttpServletRequest request) {
+    if (request.getCookies() == null) {
+      return null;
+    }
+    for (Cookie cookie : request.getCookies()) {
+      if (OAuthExchangeService.BINDING_COOKIE.equals(cookie.getName())) {
+        return cookie.getValue();
+      }
+    }
+    return null;
+  }
+
+  private void oauthNoStore(HttpServletResponse response) {
+    response.setHeader("Cache-Control", "no-store");
+    response.setHeader("Referrer-Policy", "no-referrer");
+  }
+
+  /**
+   * 로그아웃 API
+   *
+   * @param response 쿠키 삭제를 위한 HttpResponse
+   * @return 성공 응답
+   */
+  @PostMapping("/logout")
+  @Operation(summary = "로그아웃 API", description = """
+    - Description : 이 API는 로그아웃을 요청합니다. Refresh Token을 revoke하고 쿠키를 삭제합니다.
+    - Assignee : 안나
+    """)
+  public ResponseEntity<CommonResponse<Void>> logout(HttpServletResponse response) {
+    Authentication auth = SecurityContextHolder.getContext()
+      .getAuthentication();
+    if (auth != null && auth.getPrincipal() instanceof Long userId) {
+      authService.logout(userId);
+    }
+
+    cookieUtil.deleteCookie(jwtConstant.getAccessTokenCookieName(), response);
+    cookieUtil.deleteCookie(jwtConstant.getRefreshTokenCookieName(), response);
+
+    return ResponseEntity.ok(CommonResponse.success(null));
   }
 
   /**
@@ -169,7 +250,7 @@ public class AuthController {
   ) {
     String clientIp = httpServletRequest.getRemoteAddr();
     String userAgent = httpServletRequest.getHeader("User-Agent");
-    
+
     LoginResultResponse loginResultResponse = authService.login(request, clientIp, userAgent);
 
     cookieUtil.createAccessTokenCookie(response, loginResultResponse.accessToken());
@@ -178,5 +259,67 @@ public class AuthController {
     LoginResponse loginResponse = LoginResponse.from(loginResultResponse.user());
 
     return ResponseEntity.ok(CommonResponse.success(loginResponse));
+  }
+
+  /**
+   * 토큰 갱신 API
+   *
+   * @param request 쿠키에서 refresh token을 추출하기 위한 HttpRequest
+   * @param response 새 토큰을 쿠키에 담기 위한 HttpResponse
+   * @return 갱신된 사용자 정보
+   */
+  @PostMapping("/refresh")
+  @Operation(summary = "토큰 갱신 API", description = """
+    - Description : 리프레시 토큰을 사용하여 새로운 액세스 토큰과 리프레시 토큰을 발급합니다.
+    - 기존 리프레시 토큰은 revoke되고 새로운 토큰이 발급됩니다 (토큰 로테이션).
+    """)
+  @ApiResponse(
+    responseCode = "200",
+    content = @Content(schema = @Schema(implementation = LoginResponse.class)))
+  public ResponseEntity<CommonResponse<LoginResponse>> refresh(
+    HttpServletRequest request,
+    HttpServletResponse response
+  ) {
+    String refreshToken = jwtUtil.extractRefreshToken(request);
+    if (refreshToken == null) {
+      throw new CustomException(GlobalExceptionCode.INVALID_REFRESH_TOKEN);
+    }
+
+    LoginResultResponse loginResultResponse = tokenService.refresh(refreshToken);
+
+    cookieUtil.createAccessTokenCookie(response, loginResultResponse.accessToken());
+    cookieUtil.createRefreshTokenCookie(response, loginResultResponse.refreshToken());
+
+    LoginResponse loginResponse = LoginResponse.from(loginResultResponse.user());
+
+    return ResponseEntity.ok(CommonResponse.success(loginResponse));
+  }
+
+  /**
+   * 랜덤 닉네임 생성 API
+   * {형용사} + {종족 or 직업} + {5자리 문자} 조합의 랜덤 닉네임 생성
+   *
+   * @return 랜덤 닉네임(String)
+   */
+  @GetMapping("/random-nickname")
+  @Operation(summary = "랜덤 닉네임 생성 API", description = """
+    - Description : {형용사} + {종족 or 직업} + {5자리 문자} 조합의 랜덤 닉네임이 생성됩니다.
+    """)
+  @ApiResponse(
+    responseCode = "200",
+    content = @Content(schema = @Schema(implementation = String.class)))
+  public ResponseEntity<CommonResponse<String>> getRandomNickname() {
+    String nickname = userService.generateRandomNickname();
+
+    return ResponseEntity.ok(CommonResponse.success(nickname));
+  }
+
+  @GetMapping("/random-nickname/candidate")
+  @Operation(summary = "서명된 랜덤 닉네임 후보 발급 API")
+  public ResponseEntity<CommonResponse<NicknameCandidateResponse>> getRandomNicknameCandidate() {
+    NicknameCandidateResponse candidate = nicknameCandidateService.issue(userService.generateRandomNickname());
+    return ResponseEntity.ok()
+      .cacheControl(CacheControl.noStore())
+      .body(CommonResponse.success(candidate));
   }
 }
