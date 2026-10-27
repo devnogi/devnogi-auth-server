@@ -78,7 +78,7 @@ public class AuthService {
     return signUp(request, adminRole);
   }
 
-  @Transactional
+  @Transactional(noRollbackFor = LoginRejectedException.class)
   public LoginResultResponse login(LoginRequest request, String clientIp, String userAgent) {
     // Lock before account-lock/history writes, matching refresh and logout lock order.
     User user = userRepository.findByEmailForUpdate(request.email())
@@ -98,12 +98,12 @@ public class AuthService {
       .isAfter(LocalDateTime.now())) {
       // 잠금 상태인 경우 이력 저장 후 예외 발생
       saveLoginHistory(user, false, Reason.LOCKED_ACCOUNT, clientIp, userAgent); // Reason에 LOCKED_ACCOUNT가 없으면 추가 필요
-      throw new CustomException(GlobalExceptionCode.ACCOUNT_LOCKED); // GlobalExceptionCode에 추가 필요
+      throw LoginRejectedException.accountLocked();
     }
 
     if (!bCryptPasswordEncoder.matches(request.password(), user.getPasswordHash())) {
       handleLoginFailure(user, accountLock, clientIp, userAgent);
-      throw new CustomException(GlobalExceptionCode.INVALID_PASSWORD);
+      throw LoginRejectedException.invalidPassword();
     }
 
     handleLoginSuccess(user, accountLock, clientIp, userAgent);

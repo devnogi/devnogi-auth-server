@@ -15,8 +15,11 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
-import java.util.Optional;
+import jakarta.persistence.LockModeType;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
@@ -42,28 +45,32 @@ class UserVerificationLogTest {
   private UserVerificationService service;
   private UserVerificationTokenRepository tokens;
   private UserVerificationRepository verifications;
+  private EntityManager entityManager;
 
   @BeforeEach
   void setUp() {
     tokens = mock(UserVerificationTokenRepository.class);
     verifications = mock(UserVerificationRepository.class);
+    entityManager = mock(EntityManager.class);
+    UserVerificationHistoryRepository histories = mock(UserVerificationHistoryRepository.class);
+    KafkaProducerService producer = mock(KafkaProducerService.class);
+    UserService userService = mock(UserService.class);
     service = new UserVerificationService(
       mock(UserRepository.class),
       tokens,
       verifications,
-      mock(UserVerificationHistoryRepository.class),
-      mock(KafkaProducerService.class),
+      histories,
       new ObjectMapper().findAndRegisterModules(),
       mock(UserVerificationHistoryService.class),
-      mock(UserService.class),
-      mock(EntityManager.class)
+      entityManager,
+      new UserVerificationAttemptService(entityManager, tokens, verifications, histories, userService, producer)
     );
     ReflectionTestUtils.setField(service, "verificationPrefix", "메모노기_");
   }
 
   @Test
   void malformedPayloadDoesNotEnterWarningOrResultLogs() {
-    try (LogCapture logs = new LogCapture(UserVerificationService.class)) {
+    try (LogCapture logs = new LogCapture(UserVerificationService.class, UserVerificationAttemptService.class)) {
       service.verifyFromKafkaPayload("{\"verificationValue\":\"" + TOKEN_MARKER + "\",broken");
 
       assertTrue(logs.messages().contains("INVALID_MESSAGE"));
@@ -73,8 +80,8 @@ class UserVerificationLogTest {
 
   @Test
   void unknownAndRevokedTokensDoNotEnterFailureLogs() {
-    try (LogCapture logs = new LogCapture(UserVerificationService.class)) {
-      when(tokens.findByTokenValue(TOKEN_MARKER)).thenReturn(Optional.empty());
+    try (LogCapture logs = new LogCapture(UserVerificationService.class, UserVerificationAttemptService.class)) {
+      when(tokens.findUserIdByTokenValue(TOKEN_MARKER)).thenReturn(Optional.empty());
       service.verifyFromKafkaPayload(validPayload());
       assertTrue(logs.messages().contains("TOKEN_NOT_FOUND"));
 
@@ -83,7 +90,7 @@ class UserVerificationLogTest {
       UserVerificationToken revoked = mock(UserVerificationToken.class);
       when(revoked.getUser()).thenReturn(user);
       when(revoked.isRevoked()).thenReturn(true);
-      when(tokens.findByTokenValue(TOKEN_MARKER)).thenReturn(Optional.of(revoked));
+      prepareKnownToken(user, revoked);
       service.verifyFromKafkaPayload(validPayload());
 
       assertTrue(logs.messages().contains("TOKEN_REVOKED"));
@@ -93,13 +100,13 @@ class UserVerificationLogTest {
 
   @Test
   void expiredTokenDoesNotEnterFailureLogs() {
-    try (LogCapture logs = new LogCapture(UserVerificationService.class)) {
+    try (LogCapture logs = new LogCapture(UserVerificationService.class, UserVerificationAttemptService.class)) {
       User user = mock(User.class);
       when(user.getId()).thenReturn(42L);
       UserVerificationToken expired = mock(UserVerificationToken.class);
       when(expired.getUser()).thenReturn(user);
       when(expired.isExpired(any(LocalDateTime.class))).thenReturn(true);
-      when(tokens.findByTokenValue(TOKEN_MARKER)).thenReturn(Optional.of(expired));
+      prepareKnownToken(user, expired);
 
       service.verifyFromKafkaPayload(validPayload());
 
@@ -110,15 +117,13 @@ class UserVerificationLogTest {
 
   @Test
   void successfulVerificationLogsOnlyResultAndSafeUserId() {
-    try (LogCapture logs = new LogCapture(UserVerificationService.class)) {
+    try (LogCapture logs = new LogCapture(UserVerificationService.class, UserVerificationAttemptService.class)) {
       User user = mock(User.class);
       when(user.getId()).thenReturn(42L);
       UserVerificationToken token = mock(UserVerificationToken.class);
       when(token.getUser()).thenReturn(user);
-      when(tokens.findByTokenValue(TOKEN_MARKER)).thenReturn(Optional.of(token));
-      when(verifications.findByServerNameAndCharacterNameAndVerifiedTrue(SERVER_MARKER, CHARACTER_MARKER))
-        .thenReturn(Optional.empty());
-      when(verifications.findByUserId(42L)).thenReturn(Optional.empty());
+      prepareKnownToken(user, token);
+      when(verifications.findByUserIdForUpdate(42L)).thenReturn(Optional.empty());
 
       service.verifyFromKafkaPayload(validPayload());
 
@@ -130,7 +135,7 @@ class UserVerificationLogTest {
   @Test
   void exceptionMessageCannotEnterErrorLog() {
     try (LogCapture logs = new LogCapture(UserVerificationService.class)) {
-      when(tokens.findByTokenValue(anyString())).thenThrow(new IllegalStateException(TOKEN_MARKER));
+      when(tokens.findUserIdByTokenValue(anyString())).thenThrow(new IllegalStateException(TOKEN_MARKER));
 
       assertThrows(CustomException.class, () -> service.verifyFromKafkaPayload(validPayload()));
 
@@ -159,6 +164,13 @@ class UserVerificationLogTest {
       """.formatted(CHARACTER_MARKER, SERVER_MARKER, TOKEN_MARKER, MESSAGE_MARKER);
   }
 
+  private void prepareKnownToken(User user, UserVerificationToken token) {
+    when(tokens.findUserIdByTokenValue(TOKEN_MARKER)).thenReturn(Optional.of(42L));
+    when(tokens.findByTokenValueForUpdate(TOKEN_MARKER)).thenReturn(Optional.of(token));
+    when(entityManager.find(User.class, 42L, LockModeType.PESSIMISTIC_WRITE)).thenReturn(user);
+    when(entityManager.find(User.class, 42L)).thenReturn(user);
+  }
+
   private static void assertNoMarkers(String messages) {
     assertFalse(messages.contains(TOKEN_MARKER));
     assertFalse(messages.contains(CHARACTER_MARKER));
@@ -167,16 +179,19 @@ class UserVerificationLogTest {
   }
 
   private static final class LogCapture implements AutoCloseable {
-    private final Logger logger;
-    private final Level originalLevel;
+    private final List<Logger> loggers = new ArrayList<>();
+    private final List<Level> originalLevels = new ArrayList<>();
     private final ListAppender<ILoggingEvent> appender = new ListAppender<>();
 
-    private LogCapture(Class<?> type) {
-      logger = (Logger) LoggerFactory.getLogger(type);
-      originalLevel = logger.getLevel();
-      logger.setLevel(Level.DEBUG);
+    private LogCapture(Class<?>... types) {
       appender.start();
-      logger.addAppender(appender);
+      for (Class<?> type : types) {
+        Logger logger = (Logger) LoggerFactory.getLogger(type);
+        loggers.add(logger);
+        originalLevels.add(logger.getLevel());
+        logger.setLevel(Level.DEBUG);
+        logger.addAppender(appender);
+      }
     }
 
     private String messages() {
@@ -186,8 +201,11 @@ class UserVerificationLogTest {
 
     @Override
     public void close() {
-      logger.detachAppender(appender);
-      logger.setLevel(originalLevel);
+      for (int i = 0; i < loggers.size(); i++) {
+        Logger logger = loggers.get(i);
+        logger.detachAppender(appender);
+        logger.setLevel(originalLevels.get(i));
+      }
       appender.stop();
     }
   }
