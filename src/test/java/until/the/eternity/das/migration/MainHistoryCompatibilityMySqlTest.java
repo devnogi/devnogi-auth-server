@@ -1,9 +1,9 @@
 package until.the.eternity.das.migration;
 
 import org.flywaydb.core.Flyway;
+import org.flywaydb.core.api.FlywayException;
 import org.flywaydb.core.api.MigrationVersion;
 import org.flywaydb.core.api.exception.FlywayValidateException;
-import org.flywaydb.core.api.FlywayException;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
@@ -11,6 +11,7 @@ import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.sql.SQLException;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
@@ -151,8 +152,22 @@ class MainHistoryCompatibilityMySqlTest {
     var before = roles(db);
     Flyway candidate = Flyway.configure().dataSource(url, user, password)
       .locations("classpath:db/migration").baselineOnMigrate(true).baselineVersion("20261027000001").load();
-    assertThrows(FlywayException.class, candidate::migrate);
+    FlywayException failure = assertThrows(FlywayException.class, candidate::migrate);
+    assertTrue(hasRoleConflictSignal(failure),
+      "Migration must fail with the explicit default-role conflict SIGNAL");
     assertEquals(before, roles(db));
+  }
+
+  private static boolean hasRoleConflictSignal(Throwable failure) {
+    for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+      if (cause instanceof SQLException sqlException
+          && "45000".equals(sqlException.getSQLState())
+          && sqlException.getMessage() != null
+          && sqlException.getMessage().contains("Default role identifier or name conflicts with existing data")) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private static boolean present(String value) {
