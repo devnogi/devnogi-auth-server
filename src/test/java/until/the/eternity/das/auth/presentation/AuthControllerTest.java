@@ -2,6 +2,7 @@ package until.the.eternity.das.auth.presentation;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -13,10 +14,13 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import until.the.eternity.das.auth.application.AuthService;
+import until.the.eternity.das.auth.application.NicknameCandidateService;
 import until.the.eternity.das.auth.dto.request.LoginRequest;
 import until.the.eternity.das.auth.dto.request.SignUpRequest;
+import until.the.eternity.das.auth.dto.request.SocialSignUpRequest;
 import until.the.eternity.das.auth.dto.response.LoginResultResponse;
 import until.the.eternity.das.auth.dto.response.SignUpResponse;
+import until.the.eternity.das.auth.dto.response.NicknameCandidateResponse;
 import until.the.eternity.das.common.config.TestSecurityConfig;
 import until.the.eternity.das.common.constant.JwtConstant;
 import until.the.eternity.das.common.exception.CustomException;
@@ -24,6 +28,7 @@ import until.the.eternity.das.common.exception.GlobalExceptionCode;
 import until.the.eternity.das.common.util.CookieUtil;
 import until.the.eternity.das.common.util.JwtUtil;
 import until.the.eternity.das.oauth.service.SocialAuthService;
+import until.the.eternity.das.oauth.service.OAuthExchangeService;
 import until.the.eternity.das.role.entity.Role;
 import until.the.eternity.das.role.entity.enums.Name;
 import until.the.eternity.das.token.application.TokenService;
@@ -39,6 +44,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(AuthController.class)
@@ -61,6 +67,9 @@ class AuthControllerTest {
   private SocialAuthService socialAuthService;
 
   @MockitoBean
+  private OAuthExchangeService oauthExchangeService;
+
+  @MockitoBean
   private CookieUtil cookieUtil;
 
   @MockitoBean
@@ -74,6 +83,9 @@ class AuthControllerTest {
 
   @MockitoBean
   private UserService userService;
+
+  @MockitoBean
+  private NicknameCandidateService nicknameCandidateService;
 
   private MockMultipartFile mockFile;
   private SignUpRequest signUpRequest;
@@ -144,6 +156,52 @@ class AuthControllerTest {
   }
 
   @Test
+  void oldSignupPageWithoutTicketReceivesRefreshGuidance() throws Exception {
+    when(authService.signUpUser(any(SignUpRequest.class)))
+      .thenThrow(new CustomException(GlobalExceptionCode.NICKNAME_TICKET_REQUIRED));
+
+    mockMvc.perform(multipart("/api/auth/signup")
+        .param("email", "old-page@example.invalid")
+        .param("password", "LocalPass123!")
+        .param("nickname", "manualName"))
+      .andExpect(status().isBadRequest())
+      .andExpect(jsonPath("$.code").value("NICKNAME_TICKET_REQUIRED"))
+      .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("새로고침")));
+  }
+
+  @Test
+  void oldSocialSignupPageWithoutProofReceivesRefreshGuidance() throws Exception {
+    when(socialAuthService.completeSocialSignup(any(SocialSignUpRequest.class), any()))
+      .thenThrow(new CustomException(GlobalExceptionCode.OAUTH_SIGNUP_PROOF_REQUIRED));
+
+    mockMvc.perform(multipart("/api/auth/signup/social")
+        .param("provider", "google")
+        .param("providerUserId", "synthetic-id")
+        .param("email", "old-social@example.invalid")
+        .param("nickname", "manualName"))
+      .andExpect(status().isBadRequest())
+      .andExpect(jsonPath("$.code").value("OAUTH_SIGNUP_PROOF_REQUIRED"))
+      .andExpect(header().string("Cache-Control", "no-store"))
+      .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("새로고침")));
+  }
+
+  @Test
+  void oauthExchangeForwardsOnlyCodeAndBindingAndDisablesCache() throws Exception {
+    when(jwtConstant.getAccessTokenCookieName()).thenReturn("access_token");
+    when(oauthExchangeService.exchange("synthetic-code", "synthetic-binding"))
+      .thenReturn(new OAuthExchangeService.ExchangeResult("LOGIN_SUCCESS", null, null, null));
+
+    mockMvc.perform(post("/api/auth/oauth/exchange")
+        .cookie(new Cookie(OAuthExchangeService.BINDING_COOKIE, "synthetic-binding"))
+        .contentType(MediaType.APPLICATION_JSON)
+        .content("{\"code\":\"synthetic-code\"}"))
+      .andExpect(status().isOk())
+      .andExpect(header().string("Cache-Control", "no-store"))
+      .andExpect(header().string("Referrer-Policy", "no-referrer"))
+      .andExpect(jsonPath("$.data.type").value("LOGIN_SUCCESS"));
+  }
+
+  @Test
   @DisplayName("로그인 API 성공 시 쿠키 생성 및 사용자 정보 반환 테스트")
   void loginApi_Success() throws Exception {
     // --- GIVEN (주어진 상황) ---
@@ -201,5 +259,20 @@ class AuthControllerTest {
       .andExpect(jsonPath("$.data").value(expectedNickname));
       
     verify(userService).generateRandomNickname();
+  }
+
+  @Test
+  void candidateEndpointReturnsNameTicketExpirationAndNoStore() throws Exception {
+    String nickname = "강인한 인간 ABC12";
+    when(userService.generateRandomNickname()).thenReturn(nickname);
+    when(nicknameCandidateService.issue(nickname)).thenReturn(new NicknameCandidateResponse(
+      nickname, "synthetic-ticket", java.time.Instant.parse("2026-10-26T00:10:00Z")));
+
+    mockMvc.perform(get("/api/auth/random-nickname/candidate"))
+      .andExpect(status().isOk())
+      .andExpect(header().string("Cache-Control", "no-store"))
+      .andExpect(jsonPath("$.data.nickname").value(nickname))
+      .andExpect(jsonPath("$.data.nicknameTicket").value("synthetic-ticket"))
+      .andExpect(jsonPath("$.data.expiresAt").value("2026-10-26T00:10:00Z"));
   }
 }

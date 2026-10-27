@@ -13,6 +13,17 @@ jobs:
     name: verify
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    services:
+      mysql:
+        image: mysql:8.0.42
+        env:
+          MYSQL_ROOT_PASSWORD: synthetic-nickname-test-only
+          MYSQL_DATABASE: auth
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --host=127.0.0.1 --user=root --password=synthetic-nickname-test-only"
+          --health-interval=5s --health-timeout=5s --health-retries=20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -22,6 +33,27 @@ jobs:
           cache: gradle
       - run: chmod +x gradlew
       - run: ./gradlew verify --no-daemon
+      - name: Verify nickname migration on MySQL 8.0.42
+        run: ./gradlew test --tests '*NicknameMigrationMySqlTest' --rerun-tasks --no-daemon
+        env:
+          NICKNAME_MYSQL_URL: jdbc:mysql://127.0.0.1:3306/auth?useSSL=false&allowPublicKeyRetrieval=true
+          NICKNAME_MYSQL_USER: root
+          NICKNAME_MYSQL_PASSWORD: synthetic-nickname-test-only
+          NICKNAME_MYSQL_REQUIRED: 'true'
+      - name: Verify nickname and game identity concurrency on MySQL 8.0.42
+        run: ./gradlew test --tests '*NicknameConcurrencyMySqlTest' --rerun-tasks --no-daemon
+        env:
+          NICKNAME_MYSQL_URL: jdbc:mysql://127.0.0.1:3306/auth?useSSL=false&allowPublicKeyRetrieval=true
+          NICKNAME_MYSQL_USER: root
+          NICKNAME_MYSQL_PASSWORD: synthetic-nickname-test-only
+          NICKNAME_MYSQL_REQUIRED: 'true'
+      - name: Verify OAuth exchange migration and one-time proof on MySQL 8.0.42
+        run: ./gradlew test --tests '*OAuthExchangeMySqlTest' --tests '*SocialSignupProofMySqlTest' --rerun-tasks --no-daemon
+        env:
+          NICKNAME_MYSQL_URL: jdbc:mysql://127.0.0.1:3306/auth?useSSL=false&allowPublicKeyRetrieval=true
+          NICKNAME_MYSQL_USER: root
+          NICKNAME_MYSQL_PASSWORD: synthetic-nickname-test-only
+          NICKNAME_MYSQL_REQUIRED: 'true'
       - name: Test reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -37,4 +69,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Validate manual deployment guards
+        run: node --test scripts/test-deploy-prod-workflow.mjs
       - run: node scripts/secret-scan.mjs

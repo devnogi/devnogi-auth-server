@@ -26,7 +26,13 @@ docker compose --env-file .env.local -f docker-compose-local.yml up --build auth
 
 ## CI와 배포
 
-PR 필수 검사 이름은 verify와 secret-scan이다. 원격 브랜치 보호에서 두 검사와 사람 리뷰를 필수로 지정해야 강제된다. yaml 파일만 추가해도 보호가 활성화되는 것은 아니다. 이미지 게시/운영 배포는 workflow_dispatch로 분리했고 기본 운영 경로는 main/production, 개발 환경은 dev/development다. 빠른 개선을 위해 2026-12-31 23:59:59 KST까지 승인받은 사람이 dev에서 production으로 수동 배포할 수 있다. 이때 이미지는 실행한 dev 커밋의 `dev-<SHA>` 태그를 사용하며 `latest`는 갱신하지 않는다. 2027-01-01 00:00 KST부터 workflow의 시각 검사가 dev 운영 배포를 차단한다. GitHub production Environment의 허용 브랜치에 dev를 추가하고 기존 승인자를 유지해야 실제 실행된다. 이 설정 변경, PR 병합 및 운영 배포는 각각 별도 사람 승인 대상이며 push/PR 생성만으로 배포하지 않는다.
+PR 필수 검사 이름은 verify와 secret-scan이다. 원격 브랜치 보호에서 두 검사와 사람 리뷰를 필수로 지정해야 강제된다. YAML 파일만 추가해도 보호가 활성화되는 것은 아니다. 운영 이미지 게시와 배포는 `workflow_dispatch`로만 실행한다. `main` 수동 실행은 현재 `dev`의 SHA 태그를 게시하고 검증된 이미지 digest로 배포한다. 빠른 개선을 위해 2026-12-31 23:59:59 KST까지 승인받은 사람이 `dev`에서 수동 실행하면 `dev-<실행 SHA>` 태그를 게시하고 같은 build의 검증된 digest로 배포한다. 운영 Compose는 `IMAGE_REF` digest를 필수로 요구하며 `latest` 태그를 기본값으로 사용하지 않는다.
+
+`dev` 실행은 production 환경 접근 전, 두 운영 job의 승인 직후, 이미지 게시 전, 첫 SSH 연결 전, 실제 컨테이너 교체 직전에 기한을 검사한다. 2027-01-01 00:00 KST부터 `dev` 운영 배포를 차단한다. GitHub `production` Environment는 현재 `main`만 허용하므로 `dev`를 실제 배포하려면 허용 브랜치에 추가하고 기존 승인자를 유지하는 별도 사람 승인이 필요하다. PR 병합과 실제 운영 배포도 각각 별도 승인 대상이며 push/PR 생성만으로 배포하지 않는다.
+
+닉네임 정책 변경의 MySQL 검증은 PR `verify` job에서 MySQL 8.0.42에 실제 Flyway 이력을 적용하는 `NicknameMigrationMySqlTest`와 인증·마이페이지 동시 갱신을 확인하는 `NicknameConcurrencyMySqlTest`를 순서대로 필수 실행한다. 로컬에서는 격리된 임시 컨테이너를 만드는 `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-nickname-mysql.ps1 -Image mysql:8.0.42`로 같은 검사를 실행한다. 일반 `verify`는 MySQL 환경 변수가 없으면 해당 통합 테스트를 건너뛰므로, 일반 `verify`만으로 DB 제약이나 동시성을 검증했다고 주장하지 않는다.
+
+실제 DB에 마이그레이션을 적용하기 전 `scripts/check-nickname-duplicates.sql`을 대상 auth 스키마에서 실행한다. 결과가 하나라도 나오면 자동 개명하지 않고 적용을 중단한다. 모든 Auth 노드는 JWT와 다른 전용 `NICKNAME_TICKET_SECRET`을 공유해야 하며, 누락·짧은 키·JWT 키 재사용 시 기동이 실패한다. 새 코드의 `NICKNAME_ENFORCE_ISSUED_CANDIDATES` 기본값은 `true`다. 구형 프런트엔드와 겹치는 별도 승인된 배포에서만 모든 노드에 `false`를 명시하고, 새 프런트엔드 전환 뒤 override를 제거한다.
 
 각 서비스의 Compose는 개별 개발 환경이다. 전체 MSA가 자동 연결된다는 뜻은 아니다. Kafka는 bootstrap 주소뿐 아니라 브로커 advertised.listeners가 각 애플리케이션 컨테이너에서 접근 가능한 주소여야 한다. 호스트용 localhost 광고 주소를 컨테이너에 그대로 사용하지 않는다. 통합 환경에서는 공통 네트워크의 내부 리스너를 사용하거나 개발 호스트 주소로 광고하도록 별도 구성한다.
 

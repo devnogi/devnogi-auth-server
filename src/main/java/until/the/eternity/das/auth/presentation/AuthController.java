@@ -9,6 +9,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.CacheControl;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,12 +20,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import until.the.eternity.das.auth.application.AuthService;
+import until.the.eternity.das.auth.application.NicknameCandidateService;
 import until.the.eternity.das.auth.dto.request.LoginRequest;
 import until.the.eternity.das.auth.dto.request.SignUpRequest;
 import until.the.eternity.das.auth.dto.request.SocialSignUpRequest;
 import until.the.eternity.das.auth.dto.response.LoginResponse;
 import until.the.eternity.das.auth.dto.response.LoginResultResponse;
 import until.the.eternity.das.auth.dto.response.SignUpResponse;
+import until.the.eternity.das.auth.dto.response.NicknameCandidateResponse;
 import until.the.eternity.das.common.constant.JwtConstant;
 import until.the.eternity.das.common.exception.CustomException;
 import until.the.eternity.das.common.exception.GlobalExceptionCode;
@@ -32,6 +35,8 @@ import until.the.eternity.das.common.response.CommonResponse;
 import until.the.eternity.das.common.util.CookieUtil;
 import until.the.eternity.das.common.util.JwtUtil;
 import until.the.eternity.das.oauth.service.SocialAuthService;
+import until.the.eternity.das.oauth.service.OAuthExchangeService;
+import jakarta.servlet.http.Cookie;
 import until.the.eternity.das.token.application.TokenService;
 import until.the.eternity.das.user.application.UserService;
 
@@ -49,6 +54,24 @@ public class AuthController {
   private final JwtUtil jwtUtil;
   private final JwtConstant jwtConstant;
   private final UserService userService;
+  private final NicknameCandidateService nicknameCandidateService;
+  private final OAuthExchangeService oauthExchangeService;
+
+  public record OAuthExchangeRequest(String code) {}
+
+  @PostMapping("/oauth/exchange")
+  public ResponseEntity<CommonResponse<OAuthExchangeService.ExchangeResult>> exchangeOAuthCode(
+    @RequestBody OAuthExchangeRequest request, HttpServletRequest servletRequest,
+    HttpServletResponse servletResponse
+  ) {
+    oauthNoStore(servletResponse);
+    OAuthExchangeService.ExchangeResult result = oauthExchangeService.exchange(
+      request.code(), oauthBinding(servletRequest));
+    return ResponseEntity.ok()
+      .cacheControl(CacheControl.noStore())
+      .header("Referrer-Policy", "no-referrer")
+      .body(CommonResponse.success(result));
+  }
 
   /**
    * 회원 가입 API
@@ -149,9 +172,11 @@ public class AuthController {
     content = @Content(schema = @Schema(implementation = SignUpResponse.class)))
   public ResponseEntity<CommonResponse<SignUpResponse>> completeSocialSignup(
     @ModelAttribute SocialSignUpRequest request,
+    HttpServletRequest servletRequest,
     HttpServletResponse response
   ) {
-    SignUpResponse result = socialAuthService.completeSocialSignup(request);
+    oauthNoStore(response);
+    SignUpResponse result = socialAuthService.completeSocialSignup(request, oauthBinding(servletRequest));
 
     LoginResultResponse loginResultResponse = socialAuthService.jwtForSocialSignUp(result.id());
 
@@ -160,6 +185,23 @@ public class AuthController {
 
     return ResponseEntity.status(CREATED)
       .body(CommonResponse.success(result));
+  }
+
+  private String oauthBinding(HttpServletRequest request) {
+    if (request.getCookies() == null) {
+      return null;
+    }
+    for (Cookie cookie : request.getCookies()) {
+      if (OAuthExchangeService.BINDING_COOKIE.equals(cookie.getName())) {
+        return cookie.getValue();
+      }
+    }
+    return null;
+  }
+
+  private void oauthNoStore(HttpServletResponse response) {
+    response.setHeader("Cache-Control", "no-store");
+    response.setHeader("Referrer-Policy", "no-referrer");
   }
 
   /**
@@ -270,5 +312,14 @@ public class AuthController {
     String nickname = userService.generateRandomNickname();
 
     return ResponseEntity.ok(CommonResponse.success(nickname));
+  }
+
+  @GetMapping("/random-nickname/candidate")
+  @Operation(summary = "서명된 랜덤 닉네임 후보 발급 API")
+  public ResponseEntity<CommonResponse<NicknameCandidateResponse>> getRandomNicknameCandidate() {
+    NicknameCandidateResponse candidate = nicknameCandidateService.issue(userService.generateRandomNickname());
+    return ResponseEntity.ok()
+      .cacheControl(CacheControl.noStore())
+      .body(CommonResponse.success(candidate));
   }
 }

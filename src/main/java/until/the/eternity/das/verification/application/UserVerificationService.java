@@ -2,9 +2,12 @@ package until.the.eternity.das.verification.application;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import until.the.eternity.das.common.aop.ActiveUserRequired;
@@ -61,6 +64,7 @@ public class UserVerificationService {
   private final SecureRandom secureRandom = new SecureRandom();
   private final UserVerificationHistoryService userVerificationHistoryService;
   private final UserService userService;
+  private final EntityManager entityManager;
 
   @Value("${app.verification.prefix:메모노기_}")
   private String verificationPrefix;
@@ -195,6 +199,7 @@ public class UserVerificationService {
       }
 
       User user = token.getUser();
+      entityManager.refresh(user, LockModeType.PESSIMISTIC_WRITE);
 
       if (token.isRevoked()) {
         recordFailure(user, token, normalizedTokenValue, event.serverName(), event.characterName(), now,
@@ -329,6 +334,7 @@ public class UserVerificationService {
       return;
     }
 
+    entityManager.refresh(existingOwner.getUser(), LockModeType.PESSIMISTIC_WRITE);
     existingOwner.invalidate();
     existingOwner.getUser()
       .updateVerificationStatus(false, null);
@@ -339,6 +345,13 @@ public class UserVerificationService {
       .updateGameProfile(
         randomNickname,
         null);
+
+    try {
+      userRepository.flush();
+    } catch (DataIntegrityViolationException e) {
+      // The Kafka message can be retried and will draw a new candidate in a new transaction.
+      throw new CustomException(GlobalExceptionCode.NICKNAME_ALREADY_EXISTS);
+    }
 
     kafkaProducerService.sendUserInfoUpdateEvent(UserInfoUpdateEvent.of(existingOwner.getUser()));
   }

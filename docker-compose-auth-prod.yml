@@ -1,17 +1,15 @@
 services:
   auth-server:
-    image: ghcr.io/${IMAGE_NAME}/auth-server:${AUTH_IMAGE_TAG:-latest}
+    image: ${IMAGE_REF:?Set the immutable GHCR image digest}
     container_name: auth-server
     ports:
       - "${SERVER_PORT}:${SERVER_PORT}"
     env_file:
-      - .env.prod
-    volumes:
-      - ./config/application.yml:/app/config/application.yml
+      - ${DEPLOY_ENV_FILE:-.env.prod}
     environment:
       - JAVA_OPTS=-Xms256m -Xmx512m
       - SPRING_CLOUD_AWS_S3_ENDPOINT=${MINIO_ENDPOINT}
-      - SPRING_CONFIG_LOCATION=file:/app/config/application.yml
+      - SPRING_PROFILES_ACTIVE=prod
     deploy:
       resources:
         limits:

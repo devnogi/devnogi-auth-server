@@ -23,7 +23,106 @@ x-cookie-policy:
     JWT lifetime settings are milliseconds; Max-Age is lifetime / 1000 seconds.
     Local explicit access/refresh lifetimes are 3600000/86400000 ms. Legacy omitted-value
     fallbacks remain 3600/86400 ms. Logout expires both cookies with Max-Age=0.
+x-oauth-callback:
+  successLocation: /social-callback?code={opaqueCode}
+  errorLocation: /social-callback?error={nonIdentifyingCode}
+  bindingCookie: oauth_flow_binding
+  description: |
+    OAuth login and signup redirects never contain email, nickname, provider user ID, JWT or
+    serialized response data. The short-lived opaque code must be exchanged once using the
+    HttpOnly browser-binding cookie. The callback removes code from browser history immediately.
+    Binding cookie scope follows JWT_COOKIE_DOMAIN, JWT_COOKIE_SECURE and JWT_COOKIE_SAME_SITE;
+    its Max-Age is 600 seconds. Codes and signup proofs expire after 300 seconds by default.
+    Expired exchange rows are removed in bounded batches after a one-hour recovery window;
+    the default cleanup interval is 10 minutes. Raw codes, proofs and binding values are not stored.
 paths:
+  /api/auth/random-nickname/candidate:
+    get:
+      operationId: issueNicknameCandidate
+      security: []
+      description: Issues an unreserved random nickname and a short-lived signed ticket. The legacy /api/auth/random-nickname string endpoint remains available.
+      responses:
+        '200':
+          description: Candidate and ticket must be submitted together for a new nickname.
+          headers:
+            Cache-Control:
+              schema: {type: string, enum: [no-store]}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NicknameCandidateSuccess'}
+        '503':
+          description: NICKNAME_GENERATION_FAILED after bounded collision retries.
+  /api/auth/signup:
+    post:
+      operationId: signupWithNicknameCandidate
+      security: []
+      description: With default enforcement, a valid nicknameTicket for the exact nickname is required before persistence or event publication. Admin signup uses the same rule.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: {$ref: '#/components/schemas/EmailSignupRequest'}
+      responses:
+        '201': {description: Account created.}
+        '400': {description: NICKNAME_TICKET_REQUIRED (refresh the old page), INVALID_NICKNAME_TICKET or EXPIRED_NICKNAME_TICKET.}
+        '409': {description: EMAIL_ALREADY_EXISTS or NICKNAME_ALREADY_EXISTS.}
+  /api/auth/signup/social:
+    post:
+      operationId: socialSignupWithNicknameCandidate
+      security: []
+      description: |
+        Requires a one-time signupProof from OAuth code exchange and the same browser-binding
+        cookie. Provider identity comes from the Auth server's verified OAuth flow, never from
+        client-supplied provider, providerUserId or email. Legacy identity fields are compared
+        when present and rejected on mismatch. Invalid proof has no account/cookie/event effects.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: {$ref: '#/components/schemas/SocialSignupRequest'}
+      responses:
+        '201': {description: Social account created.}
+        '400': {description: OAUTH_SIGNUP_PROOF_REQUIRED/INVALID, NICKNAME_TICKET_REQUIRED, INVALID_NICKNAME_TICKET or EXPIRED_NICKNAME_TICKET.}
+        '409': {description: EMAIL_ALREADY_EXISTS or NICKNAME_ALREADY_EXISTS.}
+  /api/auth/oauth/exchange:
+    post:
+      operationId: exchangeOAuthCode
+      security: []
+      description: |
+        Exchanges the one-time opaque callback code using the HttpOnly oauth_flow_binding cookie.
+        LOGIN_SUCCESS contains no identity; the existing HttpOnly auth cookies remain in the
+        browser. SIGNUP_REQUIRED returns provider, display email and a one-time signupProof.
+        The BFF forwards only the binding cookie and does not log the code or proof.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/OAuthExchangeRequest'}
+      responses:
+        '200':
+          description: Code consumed once; no cache.
+          headers:
+            Cache-Control:
+              schema: {type: string, enum: [no-store]}
+            Referrer-Policy:
+              schema: {type: string, enum: [no-referrer]}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/OAuthExchangeSuccess'}
+        '400': {description: OAUTH_EXCHANGE_INVALID for missing, expired, reused or mismatched code/binding.}
+  /api/auth/admin/signup:
+    post:
+      operationId: adminSignupWithNicknameCandidate
+      security: [{accessCookie: []}]
+      description: SUPER_ADMIN authorization and the same candidate validation as email signup are required.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: {$ref: '#/components/schemas/EmailSignupRequest'}
+      responses:
+        '201': {description: Admin account created.}
+        '400': {description: NICKNAME_TICKET_REQUIRED (refresh the old page), INVALID_NICKNAME_TICKET or EXPIRED_NICKNAME_TICKET.}
   /api/auth/login:
     post:
       operationId: emailLogin
@@ -52,6 +151,19 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
   /api/user/info:
+    put:
+      operationId: updateCurrentUserProfile
+      security: [{accessCookie: []}]
+      description: An unverified user's changed nickname requires a matching candidate ticket. An unchanged nickname or image-only update does not. Verified users cannot change their nickname here.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: {$ref: '#/components/schemas/UserInfoUpdateRequest'}
+      responses:
+        '200': {description: Profile updated.}
+        '400': {description: NICKNAME_TICKET_REQUIRED (refresh the old page), INVALID_NICKNAME_TICKET, EXPIRED_NICKNAME_TICKET or verified-user identity restriction.}
+        '409': {description: NICKNAME_ALREADY_EXISTS.}
     get:
       operationId: currentUser
       security: [{accessCookie: []}]
@@ -120,6 +232,66 @@ components:
       description: Two Set-Cookie headers, one per cookie; do not comma-join or expose token values to JavaScript.
       schema: {type: string}
   schemas:
+    NicknameCandidate:
+      type: object
+      required: [nickname, nicknameTicket, expiresAt]
+      properties:
+        nickname: {type: string, description: Generated display name; issuance is not a reservation.}
+        nicknameTicket: {type: string, description: Signed candidate proof; never log or persist it.}
+        expiresAt: {type: string, format: date-time, description: UTC expiration.}
+    NicknameCandidateSuccess:
+      allOf:
+        - {$ref: '#/components/schemas/Envelope'}
+        - properties:
+            success: {type: boolean, enum: [true]}
+            code: {type: string, enum: [COMMON_SUCCESS]}
+            data: {$ref: '#/components/schemas/NicknameCandidate'}
+    EmailSignupRequest:
+      type: object
+      required: [email, password, nickname, nicknameTicket]
+      properties:
+        email: {type: string, format: email}
+        password: {type: string, format: password, writeOnly: true}
+        nickname: {type: string, description: Must match the ticket claim.}
+        nicknameTicket: {type: string, description: Required while issued-candidate enforcement is enabled.}
+        file: {type: string, format: binary}
+    SocialSignupRequest:
+      type: object
+      required: [signupProof, nickname, nicknameTicket]
+      properties:
+        provider: {type: string, description: Legacy optional field; must match verified server value when supplied.}
+        providerUserId: {type: string, description: Legacy optional field; must match verified server value when supplied.}
+        email: {type: string, format: email, description: Legacy optional field; must match verified server value when supplied.}
+        signupProof: {type: string, description: Short-lived one-time Auth-issued proof; never log or persist raw.}
+        nickname: {type: string, description: Must match the ticket claim.}
+        nicknameTicket: {type: string}
+        file: {type: string, format: binary}
+    OAuthExchangeRequest:
+      type: object
+      required: [code]
+      properties:
+        code: {type: string, description: Opaque one-time code from OAuth callback URL.}
+    OAuthExchangeData:
+      type: object
+      required: [type]
+      properties:
+        type: {type: string, enum: [LOGIN_SUCCESS, SIGNUP_REQUIRED]}
+        provider: {type: string, nullable: true, description: Present for SIGNUP_REQUIRED.}
+        email: {type: string, nullable: true, description: Present for SIGNUP_REQUIRED.}
+        signupProof: {type: string, nullable: true, description: Present for SIGNUP_REQUIRED; one-time.}
+    OAuthExchangeSuccess:
+      allOf:
+        - {$ref: '#/components/schemas/Envelope'}
+        - properties:
+            success: {type: boolean, enum: [true]}
+            code: {type: string, enum: [COMMON_SUCCESS]}
+            data: {$ref: '#/components/schemas/OAuthExchangeData'}
+    UserInfoUpdateRequest:
+      type: object
+      properties:
+        nickname: {type: string, description: Omit or leave unchanged for image-only update.}
+        nicknameTicket: {type: string, description: Required only for an unverified user's changed nickname.}
+        file: {type: string, format: binary}
     LoginRequest:
       type: object
       required: [email, password]

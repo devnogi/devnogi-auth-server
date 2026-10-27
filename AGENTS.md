@@ -6,4 +6,5 @@
 - Run ./gradlew spotlessApply explicitly only when intentionally formatting a change and this task exists. Never skip a failing test/check to claim success.
 - PR CI is verification only. Image publication and deployment are manual workflows, with a separate environment and branch guard. Do not dispatch, merge or deploy without explicit authorization.
 - Until 2026-12-31 23:59:59 KST, an approved operator may manually deploy `dev` to `production` after the environment's reviewer gate; the workflow blocks `dev` from 2027-01-01 00:00 KST. This temporary allowance does not authorize an agent to dispatch deployment.
+- The current production workflow publishes the commit SHA tag on `main` or `dev-<SHA>` on `dev`, then deploys the verified digest through the Compose `IMAGE_REF` requirement. Preserve the digest preflight, secret staging, pinned actions, and rollback/smoke checks when changing this path.
 - Never commit actual .env files, keys, production data or credentials. Tests use synthetic fixtures.

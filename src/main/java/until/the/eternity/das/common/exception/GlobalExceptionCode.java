@@ -20,9 +20,13 @@ public enum GlobalExceptionCode implements ExceptionCode {
   // AUTH
   EMAIL_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 가입되어 있는 이메일입니다."),
   NICKNAME_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 존재하는 닉네임입니다."),
+  NICKNAME_TICKET_REQUIRED(HttpStatus.BAD_REQUEST, "페이지를 새로고침해 최신 화면에서 랜덤 닉네임을 다시 발급받아주세요."),
+  INVALID_NICKNAME_TICKET(HttpStatus.BAD_REQUEST, "새 랜덤 닉네임을 발급받아 다시 시도해주세요."),
+  EXPIRED_NICKNAME_TICKET(HttpStatus.BAD_REQUEST, "닉네임 발급 시간이 만료되었습니다. 다시 발급받아주세요."),
+  NICKNAME_GENERATION_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "닉네임을 발급할 수 없습니다. 잠시 후 다시 시도해주세요."),
   INVALID_EMAIL_FORMAT(HttpStatus.BAD_REQUEST, "유효하지 않은 이메일 형식입니다."),
   INVALID_NICKNAME_FORMAT(HttpStatus.BAD_REQUEST,
-    "유효하지 않은 닉네임 형식입니다. 닉네임은 2자 이상 20자 이하이면서 영문, 숫자, 한글만 사용 가능합니다."),
+    "유효하지 않은 닉네임 형식입니다. 닉네임은 2자 이상 20자 이하이면서 영문, 숫자, 한글 및 공백만 사용 가능합니다."),
   INVALID_NICKNAME_COMBINATION(HttpStatus.BAD_REQUEST, "유효하지 않은 닉네임 조합입니다."),
   INVALID_PASSWORD_FORMAT(HttpStatus.BAD_REQUEST,
     "유효하지 않은 비밀번호 형식입니다. 비밀번호는 8자 이상 20자 이하이면서 1개 이상의 알파벳, 숫자, 특수문자로 구성되어야 합니다."),
@@ -49,7 +53,10 @@ public enum GlobalExceptionCode implements ExceptionCode {
   USER_VERIFICATION_INVALID(HttpStatus.BAD_REQUEST, "유효하지 않거나 만료된 인증 코드입니다."),
 
   // OAUTH
-  NOT_SUPPORTED_PROVIDER(HttpStatus.BAD_REQUEST, "지원하지 않는 소셜로그인입니다");
+  NOT_SUPPORTED_PROVIDER(HttpStatus.BAD_REQUEST, "지원하지 않는 소셜로그인입니다"),
+  OAUTH_EXCHANGE_INVALID(HttpStatus.BAD_REQUEST, "소셜 로그인 인증 시간이 만료되었습니다. 다시 로그인해주세요."),
+  OAUTH_SIGNUP_PROOF_REQUIRED(HttpStatus.BAD_REQUEST, "페이지를 새로고침하고 소셜 로그인을 다시 진행해주세요."),
+  OAUTH_SIGNUP_PROOF_INVALID(HttpStatus.BAD_REQUEST, "소셜 로그인 인증 시간이 만료되었습니다. 다시 로그인해주세요.");
 
   private final HttpStatus status;
   private final String message;
