@@ -213,24 +213,51 @@ class UserVerificationConcurrencyMySqlTest {
   void tokenExpiredWhileWaitingForUserLockIsRejected() throws Exception {
     long id = user();
     String value = token(id);
-    CountDownLatch discovered = new CountDownLatch(1);
-    doAnswer(call -> { discovered.countDown(); return Optional.of(id); })
-      .when(tokens).findUserIdByTokenValue(value);
     ExecutorService executor = Executors.newSingleThreadExecutor();
     try (Connection lock = dataSource.getConnection()) {
       lock.setAutoCommit(false);
-      try (var statement = lock.prepareStatement("SELECT id FROM users WHERE id=? FOR UPDATE")) {
-        statement.setLong(1, id);
-        statement.executeQuery().close();
+      try {
+        long blockerId;
+        try (var statement = lock.createStatement(); var result = statement.executeQuery("SELECT CONNECTION_ID()")) {
+          assertTrue(result.next());
+          blockerId = result.getLong(1);
+        }
+        try (var statement = lock.prepareStatement("SELECT id FROM users WHERE id=? FOR UPDATE")) {
+          statement.setLong(1, id);
+          statement.executeQuery().close();
+        }
+        Future<Object> result = executor.submit(() -> verifyPayload(payload("만료" + id, value)));
+        awaitUserRowLockWait(id, blockerId);
+        jdbc.update("UPDATE user_verification_token SET expires_at=? WHERE token_value=?", LocalDateTime.now().minusMinutes(1), value);
+        lock.commit();
+        assertFalse(result.get(15, TimeUnit.SECONDS) instanceof Exception);
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM user_verification_history WHERE user_id=? AND failure_reason='TOKEN_EXPIRED'", Integer.class, id));
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM user_verification WHERE user_id=?", Integer.class, id));
+        verifyNoInteractions(producer);
+      } finally {
+        lock.rollback();
       }
-      Future<Object> result = executor.submit(() -> verifyPayload(payload("만료" + id, value)));
-      assertTrue(discovered.await(10, TimeUnit.SECONDS));
-      jdbc.update("UPDATE user_verification_token SET expires_at=? WHERE token_value=?", LocalDateTime.now().minusMinutes(1), value);
-      lock.commit();
-      assertFalse(result.get(15, TimeUnit.SECONDS) instanceof Exception);
-      assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM user_verification_history WHERE user_id=? AND failure_reason='TOKEN_EXPIRED'", Integer.class, id));
-      assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM user_verification WHERE user_id=?", Integer.class, id));
     } finally { executor.shutdownNow(); }
+  }
+
+  private void awaitUserRowLockWait(long userId, long blockerConnectionId) throws InterruptedException {
+    String query = "SELECT COUNT(*) FROM performance_schema.data_lock_waits waits "
+      + "JOIN performance_schema.data_locks requested ON requested.ENGINE = waits.ENGINE "
+      + "AND requested.ENGINE_LOCK_ID = waits.REQUESTING_ENGINE_LOCK_ID "
+      + "JOIN performance_schema.data_locks blocking ON blocking.ENGINE = waits.ENGINE "
+      + "AND blocking.ENGINE_LOCK_ID = waits.BLOCKING_ENGINE_LOCK_ID "
+      + "JOIN performance_schema.threads blocker ON blocker.THREAD_ID = blocking.THREAD_ID "
+      + "WHERE requested.OBJECT_SCHEMA = DATABASE() AND requested.OBJECT_NAME = 'users' "
+      + "AND requested.INDEX_NAME = 'PRIMARY' AND requested.LOCK_TYPE = 'RECORD' "
+      + "AND requested.LOCK_STATUS = 'WAITING' AND requested.LOCK_DATA = ? "
+      + "AND blocker.PROCESSLIST_ID = ?";
+    long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+    do {
+      Integer waits = jdbc.queryForObject(query, Integer.class, Long.toString(userId), blockerConnectionId);
+      if (waits != null && waits > 0) return;
+      Thread.sleep(20);
+    } while (System.nanoTime() < deadline);
+    fail("Could not observe the target users PRIMARY row lock wait in performance_schema within 10 seconds");
   }
 
   @Test

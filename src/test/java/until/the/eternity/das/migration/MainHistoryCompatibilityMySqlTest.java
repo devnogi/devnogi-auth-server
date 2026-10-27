@@ -3,6 +3,7 @@ package until.the.eternity.das.migration;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationVersion;
 import org.flywaydb.core.api.exception.FlywayValidateException;
+import org.flywaydb.core.api.FlywayException;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
@@ -35,7 +36,7 @@ class MainHistoryCompatibilityMySqlTest {
   );
 
   @Test
-  void mainHistoryUpgradesAndFreshBaselineMatchesHistoricalSchema() throws Exception {
+  void appliedAndFreshHistoriesMigrateAndMainHistoryRequiresReconciliation() throws Exception {
     String mainUrl = System.getenv("FLYWAY_MAIN_MYSQL_URL");
     String freshUrl = System.getenv("FLYWAY_FRESH_MYSQL_URL");
     String username = System.getenv("FLYWAY_MYSQL_USER");
@@ -50,6 +51,8 @@ class MainHistoryCompatibilityMySqlTest {
     verifyFixtureBytes();
     JdbcTemplate mainDb = jdbc(mainUrl, username, password);
     JdbcTemplate freshDb = jdbc(freshUrl, username, password);
+    assertTrue(mainUrl.matches("jdbc:mysql://(127\\.0\\.0\\.1|localhost):[0-9]+/devnogi\\?.*"));
+    assertTrue(freshUrl.matches("jdbc:mysql://(127\\.0\\.0\\.1|localhost):[0-9]+/auth\\?.*"));
     assertEquals("devnogi", mainDb.queryForObject("SELECT DATABASE()", String.class));
     assertEquals("auth", freshDb.queryForObject("SELECT DATABASE()", String.class));
     assertNotEquals(mainDb.queryForObject("SELECT @@server_uuid", String.class),
@@ -57,62 +60,99 @@ class MainHistoryCompatibilityMySqlTest {
     assertEmptySchema(mainDb);
     assertEmptySchema(freshDb);
 
-    Flyway mainAtBaseline = flyway(mainUrl, username, password, "classpath:db/main-history", BASELINE_VERSION);
-    Flyway freshAtBaseline = flyway(freshUrl, username, password, "classpath:db/migration", BASELINE_VERSION);
-    mainAtBaseline.migrate();
-    freshAtBaseline.migrate();
+    assertEquals(0, mainDb.queryForObject("SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name='auth'", Integer.class));
+    mainDb.execute("CREATE DATABASE auth CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci");
+    String appliedUrl = mainUrl.replaceFirst("/devnogi\\?", "/auth?");
+    JdbcTemplate appliedDb = jdbc(appliedUrl, username, password);
+    assertEmptySchema(appliedDb);
 
-    assertEquals(1, freshDb.queryForObject("SELECT COUNT(*) FROM flyway_schema_history "
-      + "WHERE script = 'B20250721224045__auth_schema_baseline.sql' AND success = 1", Integer.class));
-    assertEquals(schemaSnapshot(mainDb), schemaSnapshot(freshDb),
-      "The baseline must reproduce the schema immediately after the historical V migrations");
-    assertEquals(roles(mainDb), roles(freshDb));
-    assertEquals(List.of("1:SUPER_ADMIN", "2:ADMIN", "3:USER"), roleKeys(mainDb));
-
+    // Two independently populated histories coexist on the first disposable server;
+    // the genuinely fresh auth history is on the second server.
     flyway(mainUrl, username, password, "classpath:db/main-history", null).migrate();
-    Integer originalChecksum = mainDb.queryForObject("SELECT checksum FROM flyway_schema_history "
-      + "WHERE version = ? AND success = 1", Integer.class, BASELINE_VERSION);
-    assertNotNull(originalChecksum);
+    flyway(appliedUrl, username, password, "classpath:db/migration", "20261027000001").migrate();
+    assertEquals(-1922630474, checksum(mainDb));
+    assertEquals(912666893, checksum(appliedDb));
+
     mainDb.update("INSERT INTO users (email, password_hash, nickname, status, role_id) "
       + "VALUES ('legacy-upgrade@example.invalid', 'synthetic-hash', 'legacy-name', 'ACTIVE', 3)");
     Long userId = mainDb.queryForObject("SELECT id FROM users WHERE email = 'legacy-upgrade@example.invalid'", Long.class);
     mainDb.update("INSERT INTO refresh_tokens (user_id, token, expires_at, revoked) "
       + "VALUES (?, 'synthetic-legacy-token', DATE_ADD(NOW(), INTERVAL 1 DAY), TRUE)", userId);
 
+    appliedDb.update("INSERT INTO users (email, password_hash, nickname, status, role_id) "
+      + "VALUES ('applied-upgrade@example.invalid', 'synthetic-hash', 'applied-name', 'ACTIVE', 3)");
+    appliedDb.update("UPDATE roles SET description='synthetic old description' WHERE id=3");
+    appliedDb.update("DELETE FROM roles WHERE id=2");
+
     Flyway candidateOnMain = flyway(mainUrl, username, password, "classpath:db/migration", null);
+    FlywayValidateException mismatch = assertThrows(FlywayValidateException.class, candidateOnMain::validate);
+    assertTrue(mismatch.getMessage().contains("checksum"));
+    assertEquals(-1922630474, checksum(mainDb));
+    assertEquals(0, mainDb.queryForObject("SELECT COUNT(*) FROM flyway_schema_history "
+      + "WHERE version='20261027000002'", Integer.class));
+    var unchangedHistory = mainDb.queryForList("SELECT installed_rank, version, description, type, script, checksum, success "
+      + "FROM flyway_schema_history WHERE version <> ? ORDER BY installed_rank", BASELINE_VERSION);
+
+    // Explicitly simulate Flyway repair on the disposable main-history database only.
+    // The row/data assertions above and below ensure the synthetic reconciliation is visible.
+    candidateOnMain.repair();
+    assertEquals(912666893, checksum(mainDb));
+    assertEquals(unchangedHistory, mainDb.queryForList("SELECT installed_rank, version, description, type, script, checksum, success "
+      + "FROM flyway_schema_history WHERE version <> ? ORDER BY installed_rank", BASELINE_VERSION));
     candidateOnMain.migrate();
     candidateOnMain.validate();
+    Flyway candidateOnApplied = flyway(appliedUrl, username, password, "classpath:db/migration", null);
+    candidateOnApplied.migrate();
+    candidateOnApplied.validate();
     flyway(freshUrl, username, password, "classpath:db/migration", null).migrate();
 
-    assertEquals(originalChecksum, mainDb.queryForObject("SELECT checksum FROM flyway_schema_history "
-      + "WHERE version = ? AND success = 1", Integer.class, BASELINE_VERSION));
-    assertEquals(0, mainDb.queryForObject("SELECT COUNT(*) FROM flyway_schema_history "
-      + "WHERE script LIKE 'B%'", Integer.class), "Baseline must not execute on an existing history");
+    assertEquals(912666893, checksum(appliedDb));
+    assertEquals(912666893, checksum(freshDb));
     assertEquals("legacy-name:USER", mainDb.queryForObject("SELECT CONCAT(u.nickname, ':', r.name) "
       + "FROM users u JOIN roles r ON r.id = u.role_id WHERE u.id = ?", String.class, userId));
+    assertEquals("applied-name:USER", appliedDb.queryForObject("SELECT CONCAT(u.nickname, ':', r.name) "
+      + "FROM users u JOIN roles r ON r.id=u.role_id WHERE u.email='applied-upgrade@example.invalid'", String.class));
     assertEquals(1, mainDb.queryForObject("SELECT COUNT(*) FROM refresh_tokens "
       + "WHERE user_id = ? AND token = 'synthetic-legacy-token' AND revoked = TRUE", Integer.class, userId));
     assertEquals(roles(mainDb), roles(freshDb));
+    assertEquals(roles(appliedDb), roles(freshDb));
+    assertEquals(List.of("1:SUPER_ADMIN", "2:ADMIN", "3:USER"), roleKeys(freshDb));
     assertEquals(schemaSnapshot(mainDb), schemaSnapshot(freshDb),
       "Upgraded and fresh databases must have the same final schema");
+    assertEquals(schemaSnapshot(appliedDb), schemaSnapshot(freshDb));
     assertEquals(8192, freshDb.queryForObject("SELECT character_maximum_length FROM information_schema.columns "
       + "WHERE table_schema = DATABASE() AND table_name = 'refresh_tokens' AND column_name = 'token'", Integer.class));
     assertEquals(0, freshDb.queryForObject("SELECT COUNT(*) FROM information_schema.schemata "
       + "WHERE schema_name = 'devnogi'", Integer.class), "Fresh auth must not require a devnogi schema");
 
-    // Simulate a separately deployed dev history on this disposable database only.
-    // This is not Flyway repair: validation must fail and leave the recorded checksum untouched.
-    byte[] mainSeed = resource("/db/main-history/V20250721224045__insert_default_data.sql");
-    byte[] changedDevSeed = resource("/db/altered-dev/V20250721224045__insert_default_data.sql");
-    assertEquals(originalChecksum, flywayChecksum(mainSeed));
-    int changedDevChecksum = flywayChecksum(changedDevSeed);
-    assertNotEquals(originalChecksum, changedDevChecksum);
-    mainDb.update("UPDATE flyway_schema_history SET checksum = ? WHERE version = ?",
-      changedDevChecksum, BASELINE_VERSION);
-    FlywayValidateException mismatch = assertThrows(FlywayValidateException.class, candidateOnMain::validate);
-    assertTrue(mismatch.getMessage().contains("checksum"));
-    assertEquals(changedDevChecksum, mainDb.queryForObject("SELECT checksum FROM flyway_schema_history "
-      + "WHERE version = ? AND success = 1", Integer.class, BASELINE_VERSION));
+    assertArrayEquals(resource("/db/migration/V20261027000002__ensure_default_roles.sql"),
+      resource("/db/role-replay/V20261027000003__ensure_default_roles_replay.sql"));
+    Flyway.configure().dataSource(appliedUrl, username, password)
+      .locations("classpath:db/migration", "classpath:db/role-replay").load().migrate();
+    assertEquals(roles(appliedDb), roles(freshDb), "Replaying the SQL must be idempotent");
+    assertEquals("applied-name:USER", appliedDb.queryForObject("SELECT CONCAT(u.nickname, ':', r.name) "
+      + "FROM users u JOIN roles r ON r.id=u.role_id WHERE u.email='applied-upgrade@example.invalid'", String.class));
+    assertRoleConflict(mainDb, mainUrl, username, password, "v7_role_conflict_id", "INSERT INTO roles VALUES (1,'OTHER','unchanged')");
+    assertRoleConflict(mainDb, mainUrl, username, password, "v7_role_conflict_name", "INSERT INTO roles VALUES (99,'user','unchanged')");
+  }
+
+  private static Integer checksum(JdbcTemplate db) {
+    return db.queryForObject("SELECT checksum FROM flyway_schema_history WHERE version=? AND success=1", Integer.class, BASELINE_VERSION);
+  }
+
+  private static void assertRoleConflict(JdbcTemplate server, String mainUrl, String user, String password,
+                                         String schema, String insert) {
+    assertEquals(0, server.queryForObject("SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name=?", Integer.class, schema));
+    server.execute("CREATE DATABASE `" + schema + "` CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci");
+    String url = mainUrl.replaceFirst("/devnogi\\?", "/" + schema + "?");
+    JdbcTemplate db = jdbc(url, user, password);
+    db.execute("CREATE TABLE roles (id BIGINT PRIMARY KEY, name VARCHAR(50) NOT NULL UNIQUE, description VARCHAR(255))");
+    db.execute(insert);
+    var before = roles(db);
+    Flyway candidate = Flyway.configure().dataSource(url, user, password)
+      .locations("classpath:db/migration").baselineOnMigrate(true).baselineVersion("20261027000001").load();
+    assertThrows(FlywayException.class, candidate::migrate);
+    assertEquals(before, roles(db));
   }
 
   private static boolean present(String value) {
@@ -169,11 +209,17 @@ class MainHistoryCompatibilityMySqlTest {
       byte[] fixtureBytes = resource("/db/main-history/" + fixture.getKey());
       assertEquals(fixture.getValue(), normalizedSha256(fixtureBytes),
         "main migration fixture changed: " + fixture.getKey());
-      assertArrayEquals(fixtureBytes, resource("/db/migration/" + fixture.getKey()),
-        "candidate historical migration bytes differ from the fixed main fixture: " + fixture.getKey());
+      if (!fixture.getKey().equals("V20250721224045__insert_default_data.sql")) {
+        assertArrayEquals(fixtureBytes, resource("/db/migration/" + fixture.getKey()),
+          "candidate historical migration bytes differ from the fixed main fixture: " + fixture.getKey());
+      }
     }
     assertEquals("a5e444d205bc36db28255a9141483e154f659e408c7a317f90c9599f842e7614",
       normalizedSha256(resource("/db/altered-dev/V20250721224045__insert_default_data.sql")));
+    assertArrayEquals(resource("/db/altered-dev/V20250721224045__insert_default_data.sql"),
+      resource("/db/migration/V20250721224045__insert_default_data.sql"));
+    assertEquals(-1922630474, flywayChecksum(resource("/db/main-history/V20250721224045__insert_default_data.sql")));
+    assertEquals(912666893, flywayChecksum(resource("/db/migration/V20250721224045__insert_default_data.sql")));
   }
 
   private static byte[] resource(String path) throws Exception {
