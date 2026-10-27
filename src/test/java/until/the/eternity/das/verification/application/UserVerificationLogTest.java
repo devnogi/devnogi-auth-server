@@ -16,8 +16,10 @@ import ch.qos.logback.core.read.ListAppender;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
-import java.util.Optional;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
@@ -68,7 +70,7 @@ class UserVerificationLogTest {
 
   @Test
   void malformedPayloadDoesNotEnterWarningOrResultLogs() {
-    try (LogCapture logs = new LogCapture(UserVerificationService.class)) {
+    try (LogCapture logs = new LogCapture(UserVerificationService.class, UserVerificationAttemptService.class)) {
       service.verifyFromKafkaPayload("{\"verificationValue\":\"" + TOKEN_MARKER + "\",broken");
 
       assertTrue(logs.messages().contains("INVALID_MESSAGE"));
@@ -78,7 +80,7 @@ class UserVerificationLogTest {
 
   @Test
   void unknownAndRevokedTokensDoNotEnterFailureLogs() {
-    try (LogCapture logs = new LogCapture(UserVerificationService.class)) {
+    try (LogCapture logs = new LogCapture(UserVerificationService.class, UserVerificationAttemptService.class)) {
       when(tokens.findUserIdByTokenValue(TOKEN_MARKER)).thenReturn(Optional.empty());
       service.verifyFromKafkaPayload(validPayload());
       assertTrue(logs.messages().contains("TOKEN_NOT_FOUND"));
@@ -98,7 +100,7 @@ class UserVerificationLogTest {
 
   @Test
   void expiredTokenDoesNotEnterFailureLogs() {
-    try (LogCapture logs = new LogCapture(UserVerificationService.class)) {
+    try (LogCapture logs = new LogCapture(UserVerificationService.class, UserVerificationAttemptService.class)) {
       User user = mock(User.class);
       when(user.getId()).thenReturn(42L);
       UserVerificationToken expired = mock(UserVerificationToken.class);
@@ -115,7 +117,7 @@ class UserVerificationLogTest {
 
   @Test
   void successfulVerificationLogsOnlyResultAndSafeUserId() {
-    try (LogCapture logs = new LogCapture(UserVerificationService.class)) {
+    try (LogCapture logs = new LogCapture(UserVerificationService.class, UserVerificationAttemptService.class)) {
       User user = mock(User.class);
       when(user.getId()).thenReturn(42L);
       UserVerificationToken token = mock(UserVerificationToken.class);
@@ -177,16 +179,19 @@ class UserVerificationLogTest {
   }
 
   private static final class LogCapture implements AutoCloseable {
-    private final Logger logger;
-    private final Level originalLevel;
+    private final List<Logger> loggers = new ArrayList<>();
+    private final List<Level> originalLevels = new ArrayList<>();
     private final ListAppender<ILoggingEvent> appender = new ListAppender<>();
 
-    private LogCapture(Class<?> type) {
-      logger = (Logger) LoggerFactory.getLogger(type);
-      originalLevel = logger.getLevel();
-      logger.setLevel(Level.DEBUG);
+    private LogCapture(Class<?>... types) {
       appender.start();
-      logger.addAppender(appender);
+      for (Class<?> type : types) {
+        Logger logger = (Logger) LoggerFactory.getLogger(type);
+        loggers.add(logger);
+        originalLevels.add(logger.getLevel());
+        logger.setLevel(Level.DEBUG);
+        logger.addAppender(appender);
+      }
     }
 
     private String messages() {
@@ -196,8 +201,11 @@ class UserVerificationLogTest {
 
     @Override
     public void close() {
-      logger.detachAppender(appender);
-      logger.setLevel(originalLevel);
+      for (int i = 0; i < loggers.size(); i++) {
+        Logger logger = loggers.get(i);
+        logger.detachAppender(appender);
+        logger.setLevel(originalLevels.get(i));
+      }
       appender.stop();
     }
   }
