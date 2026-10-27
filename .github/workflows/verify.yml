@@ -24,6 +24,16 @@ jobs:
         options: >-
           --health-cmd="mysqladmin ping --host=127.0.0.1 --user=root --password=synthetic-nickname-test-only"
           --health-interval=5s --health-timeout=5s --health-retries=20
+      token-migration-mysql:
+        image: mysql:8.0.42
+        env:
+          MYSQL_ROOT_PASSWORD: synthetic-token-migration-only
+          MYSQL_DATABASE: auth
+        ports:
+          - 3307:3306
+        options: >-
+          --health-cmd="mysqladmin ping --host=127.0.0.1 --user=root --password=synthetic-token-migration-only"
+          --health-interval=5s --health-timeout=5s --health-retries=20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -33,6 +43,13 @@ jobs:
           cache: gradle
       - run: chmod +x gradlew
       - run: ./gradlew verify --no-daemon
+      - name: Verify refresh token schema upgrade on isolated MySQL 8.0.42
+        run: ./gradlew test --tests '*RefreshTokenMigrationMySqlTest' --rerun-tasks --no-daemon
+        env:
+          TOKEN_MIGRATION_MYSQL_URL: jdbc:mysql://127.0.0.1:3307/auth?useSSL=false&allowPublicKeyRetrieval=true
+          TOKEN_MIGRATION_MYSQL_USER: root
+          TOKEN_MIGRATION_MYSQL_PASSWORD: synthetic-token-migration-only
+          TOKEN_MIGRATION_MYSQL_REQUIRED: 'true'
       - name: Verify nickname migration on MySQL 8.0.42
         run: ./gradlew test --tests '*NicknameMigrationMySqlTest' --rerun-tasks --no-daemon
         env:
@@ -55,7 +72,7 @@ jobs:
           NICKNAME_MYSQL_PASSWORD: synthetic-nickname-test-only
           NICKNAME_MYSQL_REQUIRED: 'true'
       - name: Verify refresh rotation and failure history on MySQL 8.0.42
-        run: ./gradlew test --tests '*RefreshTokenRotationMySqlTest' --tests '*UserVerificationFailureHistoryMySqlTest' --rerun-tasks --no-daemon
+        run: ./gradlew test --tests '*RefreshTokenRotationMySqlTest' --tests '*RefreshTokenLengthMySqlTest' --tests '*ConcurrentLoginMySqlTest' --tests '*UserVerificationFailureHistoryMySqlTest' --rerun-tasks --no-daemon
         env:
           NICKNAME_MYSQL_URL: jdbc:mysql://127.0.0.1:3306/auth?useSSL=false&allowPublicKeyRetrieval=true
           NICKNAME_MYSQL_USER: root

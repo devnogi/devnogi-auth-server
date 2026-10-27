@@ -193,7 +193,7 @@ class AuthServiceTest {
       .updatedAt(LocalDateTime.now())
       .build();
 
-    when(userRepository.findByEmail(loginRequest.email())).thenReturn(Optional.of(user));
+    when(userRepository.findByEmailForUpdate(loginRequest.email())).thenReturn(Optional.of(user));
     when(accountLockRepository.findById(user.getId())).thenReturn(Optional.of(accountLock));
     when(bCryptPasswordEncoder.matches(loginRequest.password(), user.getPasswordHash())).thenReturn(true);
     when(jwtUtil.generateAccessToken(user)).thenReturn("access-token");
@@ -215,7 +215,7 @@ class AuthServiceTest {
   @DisplayName("로그인 실패 - 사용자를 찾을 수 없음")
   void login_Fail_UserNotFound() {
     // given
-    when(userRepository.findByEmail(loginRequest.email())).thenReturn(Optional.empty());
+    when(userRepository.findByEmailForUpdate(loginRequest.email())).thenReturn(Optional.empty());
 
     // when & then
     CustomException exception = assertThrows(CustomException.class,
@@ -234,7 +234,7 @@ class AuthServiceTest {
       .updatedAt(LocalDateTime.now())
       .build();
 
-    when(userRepository.findByEmail(loginRequest.email())).thenReturn(Optional.of(user));
+    when(userRepository.findByEmailForUpdate(loginRequest.email())).thenReturn(Optional.of(user));
     when(accountLockRepository.findById(user.getId())).thenReturn(Optional.of(accountLock));
     when(bCryptPasswordEncoder.matches(loginRequest.password(), user.getPasswordHash())).thenReturn(false);
 
@@ -249,7 +249,7 @@ class AuthServiceTest {
     AccountLock accountLock = AccountLock.builder().user(user).userId(user.getId())
       .failedAttempts(5).lockedUntil(LocalDateTime.now().plusMinutes(5))
       .updatedAt(LocalDateTime.now()).build();
-    when(userRepository.findByEmail(loginRequest.email())).thenReturn(Optional.of(user));
+    when(userRepository.findByEmailForUpdate(loginRequest.email())).thenReturn(Optional.of(user));
     when(accountLockRepository.findById(user.getId())).thenReturn(Optional.of(accountLock));
 
     CustomException exception = assertThrows(CustomException.class,

@@ -1,0 +1,2 @@
+ALTER TABLE refresh_tokens
+    MODIFY COLUMN token VARCHAR(8192) NOT NULL COMMENT 'JWT Refresh Token';
