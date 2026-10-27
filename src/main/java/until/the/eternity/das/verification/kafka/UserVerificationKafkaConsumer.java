@@ -18,7 +18,7 @@ public class UserVerificationKafkaConsumer {
     groupId = "${spring.kafka.consumer.group-id:devnogi-auth-user-verification-consumer}"
   )
   public void consumeVerificationMessage(String payload) {
-    log.debug("Received user verification kafka message. payload={}", payload);
+    log.debug("Received user verification kafka message");
     userVerificationService.verifyFromKafkaPayload(payload);
   }
 }

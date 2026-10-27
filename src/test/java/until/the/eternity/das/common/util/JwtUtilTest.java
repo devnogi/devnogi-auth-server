@@ -37,5 +37,29 @@ class JwtUtilTest {
     assertThat(access.get("type")).isEqualTo("ACCESS");
     assertThat(refresh.get("type")).isEqualTo("REFRESH");
     assertThat(access.get("role")).isEqualTo("USER");
+    assertThat(access.getId()).isNull();
+    assertThat(refresh.getId()).isNotBlank();
+  }
+
+  @Test
+  void backToBackRefreshTokensHaveDifferentIdsEvenWithinOneSecond() throws Exception {
+    Properties sample = new Properties();
+    try (var reader = Files.newBufferedReader(Path.of(".env.example"))) {
+      sample.load(reader);
+    }
+    JwtConstant settings = new JwtConstant();
+    settings.setSecretKey(sample.getProperty("JWT_SECRET_KEY"));
+    settings.setIssuer("local-test");
+    settings.setRefreshTokenValidity(86400000L);
+    JwtUtil jwt = new JwtUtil(settings);
+    User user = User.builder().id(1L).email("synthetic@example.test")
+      .role(Role.builder().name(Name.USER).build()).build();
+
+    String first = jwt.generateRefreshToken(user);
+    String second = jwt.generateRefreshToken(user);
+
+    assertThat(second).isNotEqualTo(first);
+    assertThat(jwt.extractAllClaims(second).getId())
+      .isNotEqualTo(jwt.extractAllClaims(first).getId());
   }
 }

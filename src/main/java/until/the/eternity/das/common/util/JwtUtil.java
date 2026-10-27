@@ -20,6 +20,7 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 @Slf4j
 @Component
@@ -59,6 +60,7 @@ public class JwtUtil {
     Map<String, Object> claims = new HashMap<>();
     claims.put("userId", user.getId());
     claims.put("type", "REFRESH");
+    claims.put("jti", UUID.randomUUID().toString());
 
     return createToken(claims, user.getEmail(), jwtConstant.getRefreshTokenValidity());
   }
