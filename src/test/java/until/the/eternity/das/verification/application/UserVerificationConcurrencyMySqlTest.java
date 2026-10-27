@@ -228,7 +228,12 @@ class UserVerificationConcurrencyMySqlTest {
         }
         Future<Object> result = executor.submit(() -> verifyPayload(payload("만료" + id, value)));
         awaitUserRowLockWait(id, blockerId);
-        jdbc.update("UPDATE user_verification_token SET expires_at=? WHERE token_value=?", LocalDateTime.now().minusMinutes(1), value);
+        try (var statement = lock.prepareStatement(
+            "UPDATE user_verification_token SET expires_at=DATE_SUB(NOW(), INTERVAL 1 MINUTE) "
+                + "WHERE token_value=?")) {
+          statement.setString(1, value);
+          assertEquals(1, statement.executeUpdate());
+        }
         lock.commit();
         assertFalse(result.get(15, TimeUnit.SECONDS) instanceof Exception);
         assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM user_verification_history WHERE user_id=? AND failure_reason='TOKEN_EXPIRED'", Integer.class, id));
