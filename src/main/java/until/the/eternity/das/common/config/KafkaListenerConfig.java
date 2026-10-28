@@ -5,5 +5,4 @@ import org.springframework.kafka.annotation.EnableKafka;
 
 @Configuration
 @EnableKafka
-public class KafkaListenerConfig {
-}
+public class KafkaListenerConfig {}

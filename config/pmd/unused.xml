@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<ruleset name="Unused code" xmlns="http://pmd.sourceforge.net/ruleset/2.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 https://pmd.sourceforge.io/ruleset_2_0_0.xsd">
+    <description>Detect unused local variables and private members.</description>
+    <rule ref="category/java/bestpractices.xml/UnusedLocalVariable"/>
+    <rule ref="category/java/bestpractices.xml/UnusedPrivateField">
+        <properties><property name="reportForAnnotations" value="org.springframework.stereotype.Service,org.springframework.stereotype.Component,org.springframework.stereotype.Repository,org.springframework.stereotype.Controller,org.springframework.web.bind.annotation.RestController,org.springframework.web.bind.annotation.RestControllerAdvice,org.springframework.web.bind.annotation.ControllerAdvice,org.springframework.context.annotation.Configuration,org.springframework.boot.autoconfigure.SpringBootApplication,org.springframework.boot.context.properties.ConfigurationProperties"/></properties>
+    </rule>
+    <rule ref="category/java/bestpractices.xml/UnusedPrivateMethod"/>
+    <rule ref="category/java/bestpractices.xml/UnusedFormalParameter">
+        <properties><property name="checkAll" value="false"/></properties>
+    </rule>
+</ruleset>

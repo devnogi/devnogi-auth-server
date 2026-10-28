@@ -1,4 +1,6 @@
 plugins {
+    pmd
+    id("com.diffplug.spotless") version "6.25.0"
     id("org.springframework.boot") version "3.5.0"
     id("io.spring.dependency-management") version "1.1.0"
     kotlin("jvm") version "1.9.22"
@@ -78,6 +80,37 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+}
+
+spotless {
+    java {
+        googleJavaFormat().aosp()
+        removeUnusedImports()
+        importOrder()
+        trimTrailingWhitespace()
+        endWithNewline()
+    }
+}
+
+pmd {
+    toolVersion = "7.24.0"
+    ruleSets = emptyList()
+    ruleSetFiles = files("config/pmd/unused.xml")
+}
+
+tasks.named("check") { dependsOn("spotlessCheck") }
+tasks.register("lint") {
+    group = "verification"
+    description = "Check formatting, imports, and unused code."
+    dependsOn("spotlessCheck", "pmdMain", "pmdTest")
+}
+tasks.register<Exec>("installGitHooks") {
+    group = "build setup"
+    description = "Install the repository-local Git hooks."
+    commandLine("git", "config", "--local", "extensions.worktreeConfig", "true")
+    doLast {
+        exec { commandLine("git", "config", "--worktree", "core.hooksPath", ".githooks") }
+    }
 }
 
 tasks.named("bootJar") {

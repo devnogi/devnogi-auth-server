@@ -15,35 +15,35 @@ import until.the.eternity.das.verification.entity.enums.VerificationFailureReaso
 @Builder
 public class UserVerificationHistory {
 
-  @Id
-  @GeneratedValue(strategy = GenerationType.IDENTITY)
-  private Long id;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-  @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "user_id")
-  private User user;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
+    private User user;
 
-  @Column(name = "server_name", length = 20)
-  private String serverName;
+    @Column(name = "server_name", length = 20)
+    private String serverName;
 
-  @Column(name = "character_name", length = 100)
-  private String characterName;
+    @Column(name = "character_name", length = 100)
+    private String characterName;
 
-  @Column(name = "verified_at", nullable = false)
-  private LocalDateTime verifiedAt;
+    @Column(name = "verified_at", nullable = false)
+    private LocalDateTime verifiedAt;
 
-  @Column(name = "verification_success", nullable = false)
-  private boolean verificationSuccess;
+    @Column(name = "verification_success", nullable = false)
+    private boolean verificationSuccess;
 
-  @Enumerated(EnumType.STRING)
-  @Column(name = "failure_reason", length = 100)
-  private VerificationFailureReason failureReason;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "failure_reason", length = 100)
+    private VerificationFailureReason failureReason;
 
-  @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "token_id")
-  private UserVerificationToken token;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "token_id")
+    private UserVerificationToken token;
 
-  @CreationTimestamp
-  @Column(name = "created_at", nullable = false, updatable = false)
-  private LocalDateTime createdAt;
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
 }

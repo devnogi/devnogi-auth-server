@@ -1,10 +1,11 @@
 package until.the.eternity.das.auth.application;
 
 import jakarta.validation.constraints.NotBlank;
+import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import until.the.eternity.das.auth.dto.request.LoginRequest;
@@ -29,203 +30,222 @@ import until.the.eternity.das.user.dto.response.UserInfoUpdateEvent;
 import until.the.eternity.das.user.entity.User;
 import until.the.eternity.das.user.entity.UserRepository;
 
-import java.time.LocalDateTime;
-
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuthService {
 
-  private final AuthConverter authConverter;
-  private final UserRepository userRepository;
-  private final RoleRepository roleRepository;
-  private final AccountLockRepository accountLockRepository;
-  private final LoginHistoryRepository loginHistoryRepository;
-  private final BCryptPasswordEncoder bCryptPasswordEncoder;
-  private final JwtUtil jwtUtil;
-  private final TokenService tokenService;
-  private final S3Service s3Service;
-  private final KafkaProducerService kafkaProducerService;
-  private final NicknameCandidateService nicknameCandidateService;
+    private final AuthConverter authConverter;
+    private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
+    private final AccountLockRepository accountLockRepository;
+    private final LoginHistoryRepository loginHistoryRepository;
+    private final BCryptPasswordEncoder bCryptPasswordEncoder;
+    private final JwtUtil jwtUtil;
+    private final TokenService tokenService;
+    private final S3Service s3Service;
+    private final KafkaProducerService kafkaProducerService;
+    private final NicknameCandidateService nicknameCandidateService;
 
-  @Transactional
-  public void logout(Long userId) {
-    tokenService.revokeAllUserTokens(userId);
-  }
-
-  @Transactional
-  public SignUpResponse signUpUser(SignUpRequest request) {
-
-    Role userRole = roleRepository.findByName(Name.USER)
-      .orElseThrow(() -> {
-        log.error("USER Role이 DB에 존재하지 않습니다.");
-        return new CustomException(GlobalExceptionCode.USER_ROLE_NOT_EXISTS);
-      });
-
-    return signUp(request, userRole);
-  }
-
-
-  @Transactional
-  public SignUpResponse signUpAdmin(SignUpRequest request) {
-
-    Role adminRole = roleRepository.findByName(Name.ADMIN)
-      .orElseThrow(() -> {
-        log.error("ADMIN Role이 DB에 존재하지 않습니다.");
-        return new CustomException(GlobalExceptionCode.ADMIN_ROLE_NOT_EXISTS);
-      });
-
-    return signUp(request, adminRole);
-  }
-
-  @Transactional(noRollbackFor = LoginRejectedException.class)
-  public LoginResultResponse login(LoginRequest request, String clientIp, String userAgent) {
-    // Lock before account-lock/history writes, matching refresh and logout lock order.
-    User user = userRepository.findByEmailForUpdate(request.email())
-      .orElseThrow(() -> new CustomException(GlobalExceptionCode.USER_NOT_EXISTS));
-
-    AccountLock accountLock = accountLockRepository.findById(user.getId())
-      .orElseGet(() -> {
-        AccountLock newLock = AccountLock.builder()
-          .user(user)
-          .failedAttempts(0)
-          .updatedAt(LocalDateTime.now())
-          .build();
-        return accountLockRepository.save(newLock);
-      });
-
-    if (accountLock.getLockedUntil() != null && accountLock.getLockedUntil()
-      .isAfter(LocalDateTime.now())) {
-      // 잠금 상태인 경우 이력 저장 후 예외 발생
-      saveLoginHistory(user, false, Reason.LOCKED_ACCOUNT, clientIp, userAgent); // Reason에 LOCKED_ACCOUNT가 없으면 추가 필요
-      throw LoginRejectedException.accountLocked();
+    @Transactional
+    public void logout(Long userId) {
+        tokenService.revokeAllUserTokens(userId);
     }
 
-    if (!bCryptPasswordEncoder.matches(request.password(), user.getPasswordHash())) {
-      handleLoginFailure(user, accountLock, clientIp, userAgent);
-      throw LoginRejectedException.invalidPassword();
+    @Transactional
+    public SignUpResponse signUpUser(SignUpRequest request) {
+
+        Role userRole =
+                roleRepository
+                        .findByName(Name.USER)
+                        .orElseThrow(
+                                () -> {
+                                    log.error("USER Role이 DB에 존재하지 않습니다.");
+                                    return new CustomException(
+                                            GlobalExceptionCode.USER_ROLE_NOT_EXISTS);
+                                });
+
+        return signUp(request, userRole);
     }
 
-    handleLoginSuccess(user, accountLock, clientIp, userAgent);
+    @Transactional
+    public SignUpResponse signUpAdmin(SignUpRequest request) {
 
-    String accessToken = jwtUtil.generateAccessToken(user);
-    String refreshToken = jwtUtil.generateRefreshToken(user);
+        Role adminRole =
+                roleRepository
+                        .findByName(Name.ADMIN)
+                        .orElseThrow(
+                                () -> {
+                                    log.error("ADMIN Role이 DB에 존재하지 않습니다.");
+                                    return new CustomException(
+                                            GlobalExceptionCode.ADMIN_ROLE_NOT_EXISTS);
+                                });
 
-    tokenService.saveNewRefreshToken(user.getId(), refreshToken);
-    user.updateLastLoginAt();
-
-    return LoginResultResponse.builder()
-      .user(user)
-      .accessToken(accessToken)
-      .refreshToken(refreshToken)
-      .build();
-  }
-
-  /**
-   * 로그인 실패 핸들링
-   */
-  private void handleLoginFailure(User user, AccountLock accountLock, String ip, String userAgent) {
-    accountLock.increaseFailAttempts(); // 실패 횟수 증가
-
-    // 5회 이상 실패 시 5분 잠금
-    if (accountLock.getFailedAttempts() >= 5) {
-      accountLock.lockAccount(); // 5분 잠금
+        return signUp(request, adminRole);
     }
 
-    // Dirty Checking으로 AccountLock 업데이트 됨 (Transactional)
-    saveLoginHistory(user, false, Reason.WRONG_PASSWORD, ip, userAgent); // Reason.WRONG_PASSWORD 확인 필요
-  }
+    @Transactional(noRollbackFor = LoginRejectedException.class)
+    public LoginResultResponse login(LoginRequest request, String clientIp, String userAgent) {
+        // Lock before account-lock/history writes, matching refresh and logout lock order.
+        User user =
+                userRepository
+                        .findByEmailForUpdate(request.email())
+                        .orElseThrow(
+                                () -> new CustomException(GlobalExceptionCode.USER_NOT_EXISTS));
 
-  /**
-   * 로그인 성공 핸들링
-   */
-  private void handleLoginSuccess(User user, AccountLock accountLock, String ip, String userAgent) {
-    accountLock.reset(); // 실패 횟수 및 잠금 초기화
-    saveLoginHistory(user, true, null, ip, userAgent);
-  }
+        AccountLock accountLock =
+                accountLockRepository
+                        .findById(user.getId())
+                        .orElseGet(
+                                () -> {
+                                    AccountLock newLock =
+                                            AccountLock.builder()
+                                                    .user(user)
+                                                    .failedAttempts(0)
+                                                    .updatedAt(LocalDateTime.now())
+                                                    .build();
+                                    return accountLockRepository.save(newLock);
+                                });
 
-  /**
-   * 로그인 이력 저장
-   */
-  private void saveLoginHistory(User user, boolean success, Reason reason, String ip, String userAgent) {
-    LoginHistory history = LoginHistory.builder()
-      .user(user)
-      .success(success)
-      .reason(reason)
-      .loginIp(ip)
-      .userAgent(userAgent)
-      .createdAt(LocalDateTime.now())
-      .build();
+        if (accountLock.getLockedUntil() != null
+                && accountLock.getLockedUntil().isAfter(LocalDateTime.now())) {
+            // 잠금 상태인 경우 이력 저장 후 예외 발생
+            saveLoginHistory(
+                    user,
+                    false,
+                    Reason.LOCKED_ACCOUNT,
+                    clientIp,
+                    userAgent); // Reason에 LOCKED_ACCOUNT가 없으면 추가 필요
+            throw LoginRejectedException.accountLocked();
+        }
 
-    loginHistoryRepository.save(history);
-  }
+        if (!bCryptPasswordEncoder.matches(request.password(), user.getPasswordHash())) {
+            handleLoginFailure(user, accountLock, clientIp, userAgent);
+            throw LoginRejectedException.invalidPassword();
+        }
 
-  private SignUpResponse signUp(SignUpRequest request, Role role) {
-    isValidEmailFormat(request.email());
-    if (userRepository.existsByEmail(request.email())) {
-      throw new CustomException(GlobalExceptionCode.EMAIL_ALREADY_EXISTS);
+        handleLoginSuccess(user, accountLock, clientIp, userAgent);
+
+        String accessToken = jwtUtil.generateAccessToken(user);
+        String refreshToken = jwtUtil.generateRefreshToken(user);
+
+        tokenService.saveNewRefreshToken(user.getId(), refreshToken);
+        user.updateLastLoginAt();
+
+        return LoginResultResponse.builder()
+                .user(user)
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .build();
     }
 
-    nicknameCandidateService.validateForChange(request.nickname(), request.nicknameTicket());
-    isValidNicknameFormat(request.nickname());
-    if (userRepository.existsByNickname(request.nickname())) {
-      throw new CustomException(GlobalExceptionCode.NICKNAME_ALREADY_EXISTS);
+    /** 로그인 실패 핸들링 */
+    private void handleLoginFailure(
+            User user, AccountLock accountLock, String ip, String userAgent) {
+        accountLock.increaseFailAttempts(); // 실패 횟수 증가
+
+        // 5회 이상 실패 시 5분 잠금
+        if (accountLock.getFailedAttempts() >= 5) {
+            accountLock.lockAccount(); // 5분 잠금
+        }
+
+        // Dirty Checking으로 AccountLock 업데이트 됨 (Transactional)
+        saveLoginHistory(
+                user, false, Reason.WRONG_PASSWORD, ip, userAgent); // Reason.WRONG_PASSWORD 확인 필요
     }
 
-    isValidPasswordFormat(request.password());
-
-    String profileImageUrl = null;
-    if (request.file() != null) {
-      String dirName = "profile";
-      profileImageUrl = s3Service.uploadImage(request.file(), dirName);
+    /** 로그인 성공 핸들링 */
+    private void handleLoginSuccess(
+            User user, AccountLock accountLock, String ip, String userAgent) {
+        accountLock.reset(); // 실패 횟수 및 잠금 초기화
+        saveLoginHistory(user, true, null, ip, userAgent);
     }
 
-    User user = authConverter.fromUserSignUpRequestToUser(request,
-      bCryptPasswordEncoder.encode(request.password()), role, profileImageUrl);
+    /** 로그인 이력 저장 */
+    private void saveLoginHistory(
+            User user, boolean success, Reason reason, String ip, String userAgent) {
+        LoginHistory history =
+                LoginHistory.builder()
+                        .user(user)
+                        .success(success)
+                        .reason(reason)
+                        .loginIp(ip)
+                        .userAgent(userAgent)
+                        .createdAt(LocalDateTime.now())
+                        .build();
 
-    try {
-      userRepository.saveAndFlush(user);
-    } catch (DataIntegrityViolationException e) {
-      throw new CustomException(GlobalExceptionCode.NICKNAME_ALREADY_EXISTS);
+        loginHistoryRepository.save(history);
     }
 
-    try {
-      UserInfoUpdateEvent kafKaEvent = UserInfoUpdateEvent.of(user);
+    private SignUpResponse signUp(SignUpRequest request, Role role) {
+        isValidEmailFormat(request.email());
+        if (userRepository.existsByEmail(request.email())) {
+            throw new CustomException(GlobalExceptionCode.EMAIL_ALREADY_EXISTS);
+        }
 
-      kafkaProducerService.sendUserInfoUpdateEvent(kafKaEvent);
-    } catch (Exception e) {
-      throw new CustomException(GlobalExceptionCode.USER_INFO_UPDATE_FAILED);
+        nicknameCandidateService.validateForChange(request.nickname(), request.nicknameTicket());
+        isValidNicknameFormat(request.nickname());
+        if (userRepository.existsByNickname(request.nickname())) {
+            throw new CustomException(GlobalExceptionCode.NICKNAME_ALREADY_EXISTS);
+        }
+
+        isValidPasswordFormat(request.password());
+
+        String profileImageUrl = null;
+        if (request.file() != null) {
+            String dirName = "profile";
+            profileImageUrl = s3Service.uploadImage(request.file(), dirName);
+        }
+
+        User user =
+                authConverter.fromUserSignUpRequestToUser(
+                        request,
+                        bCryptPasswordEncoder.encode(request.password()),
+                        role,
+                        profileImageUrl);
+
+        try {
+            userRepository.saveAndFlush(user);
+        } catch (DataIntegrityViolationException e) {
+            throw new CustomException(GlobalExceptionCode.NICKNAME_ALREADY_EXISTS);
+        }
+
+        try {
+            UserInfoUpdateEvent kafKaEvent = UserInfoUpdateEvent.of(user);
+
+            kafkaProducerService.sendUserInfoUpdateEvent(kafKaEvent);
+        } catch (Exception e) {
+            throw new CustomException(GlobalExceptionCode.USER_INFO_UPDATE_FAILED);
+        }
+
+        return authConverter.fromUserToUserSignUpResponse(user);
     }
 
-    return authConverter.fromUserToUserSignUpResponse(user);
-  }
-
-
-  private void isValidPasswordFormat(String password) {
-    if (password == null || !password
-      .matches("^(?=.*[A-Za-z])(?=.*\\d)(?=.*[@$!%*#?&])[A-Za-z\\d@$!%*#?&]{8,30}$")) {
-      throw new CustomException(GlobalExceptionCode.INVALID_PASSWORD_FORMAT);
+    private void isValidPasswordFormat(String password) {
+        if (password == null
+                || !password.matches(
+                        "^(?=.*[A-Za-z])(?=.*\\d)(?=.*[@$!%*#?&])[A-Za-z\\d@$!%*#?&]{8,30}$")) {
+            throw new CustomException(GlobalExceptionCode.INVALID_PASSWORD_FORMAT);
+        }
     }
-  }
 
-
-  public void isValidEmailFormat(@NotBlank String email) {
-    if (email == null || !(email.matches("^[\\w.-]+@[\\w.-]+\\.[a-zA-Z]{2,}$"))) {
-      throw new CustomException(GlobalExceptionCode.INVALID_EMAIL_FORMAT);
+    public void isValidEmailFormat(@NotBlank String email) {
+        if (email == null || !(email.matches("^[\\w.-]+@[\\w.-]+\\.[a-zA-Z]{2,}$"))) {
+            throw new CustomException(GlobalExceptionCode.INVALID_EMAIL_FORMAT);
+        }
     }
-  }
 
-  public boolean existsByEmail(@NotBlank String email) {
-    return userRepository.existsByEmail(email);
-  }
-
-  public void isValidNicknameFormat(@NotBlank String nickname) {
-    if (nickname == null || !nickname.matches("^[가-힣a-zA-Z0-9 ]{2,20}$")) {
-      throw new CustomException(GlobalExceptionCode.INVALID_NICKNAME_FORMAT);
+    public boolean existsByEmail(@NotBlank String email) {
+        return userRepository.existsByEmail(email);
     }
-  }
 
-  public boolean existsByNickname(@NotBlank String nickname) {
-    return userRepository.existsByNickname(nickname);
-  }
+    public void isValidNicknameFormat(@NotBlank String nickname) {
+        if (nickname == null || !nickname.matches("^[가-힣a-zA-Z0-9 ]{2,20}$")) {
+            throw new CustomException(GlobalExceptionCode.INVALID_NICKNAME_FORMAT);
+        }
+    }
+
+    public boolean existsByNickname(@NotBlank String nickname) {
+        return userRepository.existsByNickname(nickname);
+    }
 }

@@ -1,11 +1,10 @@
 package until.the.eternity.das.login.entity;
 
 import jakarta.persistence.*;
+import java.time.LocalDateTime;
 import lombok.*;
 import org.hibernate.annotations.Comment;
 import until.the.eternity.das.user.entity.User;
-
-import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "password_history")
@@ -32,5 +31,4 @@ public class PasswordHistory {
     @Column(name = "changed_at", nullable = false)
     @Comment("비밀번호 변경 시각")
     private LocalDateTime changedAt;
-
 }

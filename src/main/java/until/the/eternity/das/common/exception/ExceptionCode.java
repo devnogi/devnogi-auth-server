@@ -3,9 +3,9 @@ package until.the.eternity.das.common.exception;
 import org.springframework.http.HttpStatus;
 
 public interface ExceptionCode {
-	HttpStatus getStatus();
+    HttpStatus getStatus();
 
-	String getCode();
+    String getCode();
 
-	String getMessage();
+    String getMessage();
 }

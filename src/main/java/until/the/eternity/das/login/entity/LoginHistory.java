@@ -1,13 +1,11 @@
 package until.the.eternity.das.login.entity;
 
-
 import jakarta.persistence.*;
+import java.time.LocalDateTime;
 import lombok.*;
 import org.hibernate.annotations.Comment;
 import until.the.eternity.das.login.entity.enums.Reason;
 import until.the.eternity.das.user.entity.User;
-
-import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "login_history")
@@ -46,5 +44,4 @@ public class LoginHistory {
     @Column(name = "created_at", nullable = false)
     @Comment("로그인 시도 시각")
     private LocalDateTime createdAt;
-
 }

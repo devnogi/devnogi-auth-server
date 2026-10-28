@@ -5,6 +5,10 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -21,84 +25,78 @@ import until.the.eternity.das.user.entity.User;
 import until.the.eternity.das.user.entity.UserRepository;
 import until.the.eternity.das.user.entity.enums.Status;
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class UserAuthenticationFilter extends OncePerRequestFilter {
 
-  private final JwtUtil jwtUtil;
-  private final JwtConstant jwtConstant;
-  private final UserRepository userRepository;
+    private final JwtUtil jwtUtil;
+    private final JwtConstant jwtConstant;
+    private final UserRepository userRepository;
 
-  @Override
-  protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
-    throws ServletException, IOException {
+    @Override
+    protected void doFilterInternal(
+            HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+            throws ServletException, IOException {
 
-    String token = extractTokenFromCookie(request);
+        String token = extractTokenFromCookie(request);
 
-    if (token != null) {
-      try {
-        jwtUtil.validateToken(token);
+        if (token != null) {
+            try {
+                jwtUtil.validateToken(token);
 
-        Long userId = jwtUtil.getUserIdFromToken(token);
-        String role = jwtUtil.getRoleFromToken(token);
+                Long userId = jwtUtil.getUserIdFromToken(token);
+                String role = jwtUtil.getRoleFromToken(token);
 
-        validateUserStatus(userId);
+                validateUserStatus(userId);
 
-        GrantedAuthority authority = new SimpleGrantedAuthority("ROLE_" + role);
-        List<GrantedAuthority> authorities = Collections.singletonList(authority);
+                GrantedAuthority authority = new SimpleGrantedAuthority("ROLE_" + role);
+                List<GrantedAuthority> authorities = Collections.singletonList(authority);
 
-        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-          userId,
-          null,
-          authorities
-        );
+                UsernamePasswordAuthenticationToken authentication =
+                        new UsernamePasswordAuthenticationToken(userId, null, authorities);
 
-        SecurityContextHolder.getContext()
-          .setAuthentication(authentication);
+                SecurityContextHolder.getContext().setAuthentication(authentication);
 
-      } catch (CustomException e) {
-        SecurityContextHolder.clearContext();
-      }
+            } catch (CustomException e) {
+                SecurityContextHolder.clearContext();
+            }
+        }
+
+        filterChain.doFilter(request, response);
     }
 
-    filterChain.doFilter(request, response);
-  }
+    /**
+     * HttpServletRequest의 쿠키 배열에서 Access Token(JWT)을 추출하는 메서드
+     *
+     * @param request
+     * @return JWT 문자열 또는 null
+     */
+    private String extractTokenFromCookie(HttpServletRequest request) {
+        Cookie[] cookies = request.getCookies();
+        if (cookies == null) {
+            return null;
+        }
 
-  /**
-   * HttpServletRequest의 쿠키 배열에서 Access Token(JWT)을 추출하는 메서드
-   *
-   * @param request
-   * @return JWT 문자열 또는 null
-   */
-  private String extractTokenFromCookie(HttpServletRequest request) {
-    Cookie[] cookies = request.getCookies();
-    if (cookies == null) {
-      return null;
+        return Arrays.stream(cookies)
+                .filter(cookie -> jwtConstant.getAccessTokenCookieName().equals(cookie.getName()))
+                .map(Cookie::getValue)
+                .findFirst()
+                .orElse(null);
     }
 
-    return Arrays.stream(cookies)
-      .filter(cookie -> jwtConstant.getAccessTokenCookieName()
-        .equals(cookie.getName()))
-      .map(Cookie::getValue)
-      .findFirst()
-      .orElse(null);
-  }
+    private void validateUserStatus(Long userId) {
+        // 사용자 조회
+        User user =
+                userRepository
+                        .findById(userId)
+                        .orElseThrow(
+                                () -> new CustomException(GlobalExceptionCode.USER_NOT_EXISTS));
 
-  private void validateUserStatus(Long userId) {
-    // 사용자 조회
-    User user = userRepository.findById(userId)
-      .orElseThrow(() -> new CustomException(GlobalExceptionCode.USER_NOT_EXISTS));
-
-    // 활성 상태 검증
-    if (user.getStatus() != Status.ACTIVE) {
-      log.warn("비활성화된 사용자 접근 시도: userId={}", userId);
-      throw new CustomException(GlobalExceptionCode.USER_DISABLED);
+        // 활성 상태 검증
+        if (user.getStatus() != Status.ACTIVE) {
+            log.warn("비활성화된 사용자 접근 시도: userId={}", userId);
+            throw new CustomException(GlobalExceptionCode.USER_DISABLED);
+        }
     }
-  }
 }

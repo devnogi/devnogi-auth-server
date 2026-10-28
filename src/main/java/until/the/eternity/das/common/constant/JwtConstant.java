@@ -11,14 +11,31 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "jwt")
 public class JwtConstant {
 
-  private String secretKey;
-  private Long accessTokenValidity;
-  private Long refreshTokenValidity;
-  private String issuer;
-  private String accessTokenCookieName;
-  private String refreshTokenCookieName;
-  private String cookieDomain = ".memonogi.com";
-  private boolean cookieSecure = true;
-  private String cookieSameSite = "None";
+    // Spring binds these properties and Lombok generates their accessors.
+    @SuppressWarnings("PMD.UnusedPrivateField")
+    private String secretKey;
 
+    @SuppressWarnings("PMD.UnusedPrivateField")
+    private Long accessTokenValidity;
+
+    @SuppressWarnings("PMD.UnusedPrivateField")
+    private Long refreshTokenValidity;
+
+    @SuppressWarnings("PMD.UnusedPrivateField")
+    private String issuer;
+
+    @SuppressWarnings("PMD.UnusedPrivateField")
+    private String accessTokenCookieName;
+
+    @SuppressWarnings("PMD.UnusedPrivateField")
+    private String refreshTokenCookieName;
+
+    @SuppressWarnings("PMD.UnusedPrivateField")
+    private String cookieDomain = ".memonogi.com";
+
+    @SuppressWarnings("PMD.UnusedPrivateField")
+    private boolean cookieSecure = true;
+
+    @SuppressWarnings("PMD.UnusedPrivateField")
+    private String cookieSameSite = "None";
 }

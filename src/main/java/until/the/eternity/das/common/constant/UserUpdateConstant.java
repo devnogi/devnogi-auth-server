@@ -1,7 +1,7 @@
 package until.the.eternity.das.common.constant;
 
 public class UserUpdateConstant {
-  public static final String INFO = "USER_INFO_UPDATE_EVENT";
-  public static final String PASSWORD = "PASSWORD_UPDATE_EVENT";
-  public static final String USER_VERIFICATION_VERIFY = "USER_VERIFICATION_VERIFY_EVENT";
+    public static final String INFO = "USER_INFO_UPDATE_EVENT";
+    public static final String PASSWORD = "PASSWORD_UPDATE_EVENT";
+    public static final String USER_VERIFICATION_VERIFY = "USER_VERIFICATION_VERIFY_EVENT";
 }

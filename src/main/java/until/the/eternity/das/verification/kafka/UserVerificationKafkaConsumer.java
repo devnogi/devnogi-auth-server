@@ -11,14 +11,13 @@ import until.the.eternity.das.verification.application.UserVerificationService;
 @RequiredArgsConstructor
 public class UserVerificationKafkaConsumer {
 
-  private final UserVerificationService userVerificationService;
+    private final UserVerificationService userVerificationService;
 
-  @KafkaListener(
-    topics = "${app.kafka.topics.user-verification-verify:USER_VERIFICATION_VERIFY_EVENT}",
-    groupId = "${spring.kafka.consumer.group-id:devnogi-auth-user-verification-consumer}"
-  )
-  public void consumeVerificationMessage(String payload) {
-    log.debug("Received user verification kafka message");
-    userVerificationService.verifyFromKafkaPayload(payload);
-  }
+    @KafkaListener(
+            topics = "${app.kafka.topics.user-verification-verify:USER_VERIFICATION_VERIFY_EVENT}",
+            groupId = "${spring.kafka.consumer.group-id:devnogi-auth-user-verification-consumer}")
+    public void consumeVerificationMessage(String payload) {
+        log.debug("Received user verification kafka message");
+        userVerificationService.verifyFromKafkaPayload(payload);
+    }
 }

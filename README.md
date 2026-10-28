@@ -96,6 +96,8 @@ src/main/java/until/the/eternity/das
 
 ## 6\. 시작하기 (Getting Started)
 
+처음 clone한 뒤 `./gradlew installGitHooks`로 Git hook을 설치합니다. 검사와 포맷 명령은 [개발과 검증](docs/development.md)을 참고하세요.
+
 ### 1\. 설정 파일 복사
 
 프로젝트 루트에서 제공되는 샘플 설정 파일을 복사하여 실제 설정 파일을 생성합니다.

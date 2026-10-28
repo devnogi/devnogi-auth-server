@@ -11,48 +11,48 @@ import until.the.eternity.das.user.entity.enums.Status;
 @Component
 public class AuthConverter {
 
-  /**
-   * 이메일 회원가입 관련
-   *
-   * @param request
-   * @param passwordHash
-   * @param role
-   * @param profileImageUrl
-   * @return
-   */
-  public User fromUserSignUpRequestToUser(SignUpRequest request, String passwordHash,
-                                          Role role, String profileImageUrl) {
-    return User.builder()
-      .email(request.email())
-      .passwordHash(passwordHash)
-      .nickname(request.nickname())
-      .status(Status.ACTIVE)
-      .profileImageUrl(profileImageUrl)
-      .role(role)
-      .build();
-  }
+    /**
+     * 이메일 회원가입 관련
+     *
+     * @param request
+     * @param passwordHash
+     * @param role
+     * @param profileImageUrl
+     * @return
+     */
+    public User fromUserSignUpRequestToUser(
+            SignUpRequest request, String passwordHash, Role role, String profileImageUrl) {
+        return User.builder()
+                .email(request.email())
+                .passwordHash(passwordHash)
+                .nickname(request.nickname())
+                .status(Status.ACTIVE)
+                .profileImageUrl(profileImageUrl)
+                .role(role)
+                .build();
+    }
 
-  public SignUpResponse fromUserToUserSignUpResponse(User user) {
-    return SignUpResponse.of(user.getId());
-  }
+    public SignUpResponse fromUserToUserSignUpResponse(User user) {
+        return SignUpResponse.of(user.getId());
+    }
 
-  /**
-   * 소셜 회원가입 유저 저장 관련
-   *
-   * @param oauthUserDTO
-   * @param nickname
-   * @param role
-   * @param profileImageUrl
-   * @return
-   */
-  public User fromOauthUserDTOToUser(OauthUserDTO oauthUserDTO, String nickname, Role role, String profileImageUrl) {
-    return User.builder()
-      .email(oauthUserDTO.getEmail())
-      .nickname(nickname)
-      .profileImageUrl(profileImageUrl)
-      .status(Status.ACTIVE)
-      .role(role)
-      .build();
-  }
-
+    /**
+     * 소셜 회원가입 유저 저장 관련
+     *
+     * @param oauthUserDTO
+     * @param nickname
+     * @param role
+     * @param profileImageUrl
+     * @return
+     */
+    public User fromOauthUserDTOToUser(
+            OauthUserDTO oauthUserDTO, String nickname, Role role, String profileImageUrl) {
+        return User.builder()
+                .email(oauthUserDTO.getEmail())
+                .nickname(nickname)
+                .profileImageUrl(profileImageUrl)
+                .status(Status.ACTIVE)
+                .role(role)
+                .build();
+    }
 }
