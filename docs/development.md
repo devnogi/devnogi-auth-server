@@ -32,6 +32,8 @@ docker compose --env-file .env.local -f docker-compose-local.yml up --build auth
 
 PR 필수 검사 이름은 verify와 secret-scan이다. `main`에 PR이 병합되어 push되면 해당 SHA의 이미지를 빌드하고 검증된 digest를 운영에 배포한다. `main` 수동 실행은 복구용으로 사용할 수 있다. PR 생성과 다른 브랜치의 push는 운영 배포하지 않는다. 운영 Compose는 `IMAGE_REF` digest를 요구한다. 새 배포 실패 시 기존 digest와 운영 Compose·환경 파일로 복구를 시도하며 workflow는 실패 상태를 유지한다. 실행 중인 컨테이너가 있지만 기존 배포 파일이나 digest가 없으면 교체를 중단한다.
 
+운영 연결에는 독립적으로 확인한 서버 호스트 키의 SHA256 지문을 GitHub production 환경의 `PROD2_HOST_FINGERPRINT` secret으로 등록해야 한다. SSH와 SCP 모두 이 지문을 검증한다. 복구 후에도 이전 환경의 포트로 HTTP/DB smoke 검사를 수행하고 실패를 별도로 보고한다.
+
 닉네임 정책 변경의 MySQL 검증은 PR `verify` job에서 MySQL 8.0.42에 실제 Flyway 이력을 적용하는 `NicknameMigrationMySqlTest`와 인증·마이페이지 동시 갱신을 확인하는 `NicknameConcurrencyMySqlTest`를 순서대로 필수 실행한다. 로컬에서는 격리된 임시 컨테이너를 만드는 `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-nickname-mysql.ps1 -Image mysql:8.0.42`로 같은 검사를 실행한다. 일반 `verify`는 MySQL 환경 변수가 없으면 해당 통합 테스트를 건너뛰므로, 일반 `verify`만으로 DB 제약이나 동시성을 검증했다고 주장하지 않는다.
 
 실제 DB에 마이그레이션을 적용하기 전 `scripts/check-nickname-duplicates.sql`을 대상 auth 스키마에서 실행한다. 결과가 하나라도 나오면 자동 개명하지 않고 적용을 중단한다. 모든 Auth 노드는 JWT와 다른 전용 `NICKNAME_TICKET_SECRET`을 공유해야 하며, 누락·짧은 키·JWT 키 재사용 시 기동이 실패한다. 새 코드의 `NICKNAME_ENFORCE_ISSUED_CANDIDATES` 기본값은 `true`다. 구형 프런트엔드와 겹치는 별도 승인된 배포에서만 모든 노드에 `false`를 명시하고, 새 프런트엔드 전환 뒤 override를 제거한다.

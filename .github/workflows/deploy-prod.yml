@@ -98,6 +98,7 @@ jobs:
         env:
           AUTH_SERVER_ENV: ${{ secrets.AUTH_SERVER_ENV }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOST_FINGERPRINT: ${{ secrets.PROD2_HOST_FINGERPRINT }}
         run: |
           set -euo pipefail
           umask 077
@@ -106,6 +107,7 @@ jobs:
           printf '%s' "$GHCR_TOKEN" > .deploy-secrets/.ghcr-token
           test -s .deploy-secrets/.env.prod
           test -s .deploy-secrets/.ghcr-token
+          test -n "$HOST_FINGERPRINT" || { echo 'Missing trusted PROD2_HOST_FINGERPRINT' >&2; exit 1; }
 
       - name: Prepare staging directory on Server 2
         uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
@@ -114,6 +116,7 @@ jobs:
           username: ${{ secrets.PROD2_USER }}
           key: ${{ secrets.PROD2_PEM_KEY }}
           port: ${{ secrets.PROD2_SSH_PORT }}
+          fingerprint: ${{ secrets.PROD2_HOST_FINGERPRINT }}
           script: umask 077; install -d -m 700 /opt/auth/.candidate; chmod 700 /opt/auth/.candidate
 
       - name: Copy deployment files to Server 2
@@ -123,6 +126,7 @@ jobs:
           username: ${{ secrets.PROD2_USER }}
           key: ${{ secrets.PROD2_PEM_KEY }}
           port: ${{ secrets.PROD2_SSH_PORT }}
+          fingerprint: ${{ secrets.PROD2_HOST_FINGERPRINT }}
           source: "docker-compose-auth-prod.yml,scripts/preflight-prod-deploy.sh,.deploy-secrets/.env.prod,.deploy-secrets/.ghcr-token"
           target: "/opt/auth/.candidate/"
           overwrite: true
@@ -139,6 +143,7 @@ jobs:
           username: ${{ secrets.PROD2_USER }}
           key: ${{ secrets.PROD2_PEM_KEY }}
           port: ${{ secrets.PROD2_SSH_PORT }}
+          fingerprint: ${{ secrets.PROD2_HOST_FINGERPRINT }}
           script: |
             set -eu
             cd /opt/auth/.candidate
@@ -175,18 +180,27 @@ jobs:
             fi
 
             health_ok() {
+              check_port="$1"
               attempt=0
-              until curl --fail --silent --max-time 3 --output /dev/null "http://127.0.0.1:${server_port}/api/auth/random-nickname"; do
+              until curl --fail --silent --max-time 3 --output /dev/null "http://127.0.0.1:${check_port}/api/auth/random-nickname"; do
                 attempt=$((attempt + 1))
                 [ "$attempt" -lt 24 ] || return 1
                 sleep 5
               done
             }
-            if ! docker compose -p auth -f docker-compose-auth-prod.yml --env-file "$DEPLOY_ENV_FILE" up -d --no-deps --wait --wait-timeout 120 auth-server || ! health_ok; then
+            if ! docker compose -p auth -f docker-compose-auth-prod.yml --env-file "$DEPLOY_ENV_FILE" up -d --no-deps --wait --wait-timeout 120 auth-server || ! health_ok "$server_port"; then
               echo 'Auth deployment failed; restoring the prior deployment' >&2
               if [ -n "$old_image_id" ]; then
-                IMAGE_REF="$old_image_ref" DEPLOY_ENV_FILE=/opt/auth/.env.prod \
-                  docker compose -p auth -f /opt/auth/docker-compose-auth-prod.yml --env-file /opt/auth/.env.prod up -d --no-deps --wait --wait-timeout 120 auth-server || echo 'Rollback failed; operator intervention required' >&2
+                old_port="$(awk -F= '$1 == "SERVER_PORT" { count++; value=$2 } END { if (count == 1) print value; else exit 1 }' /opt/auth/.env.prod)" || { echo 'Rollback health port missing or duplicated' >&2; exit 1; }
+                case "$old_port" in ''|*[!0-9]*) echo 'Rollback health port invalid' >&2; exit 1 ;; esac
+                if ! IMAGE_REF="$old_image_ref" DEPLOY_ENV_FILE=/opt/auth/.env.prod \
+                  docker compose -p auth -f /opt/auth/docker-compose-auth-prod.yml --env-file /opt/auth/.env.prod up -d --no-deps --wait --wait-timeout 120 auth-server; then
+                  echo 'Rollback failed; operator intervention required' >&2
+                elif ! health_ok "$old_port"; then
+                  echo 'Rollback health check failed; operator intervention required' >&2
+                else
+                  echo 'Rollback restored prior image and passed HTTP/DB smoke check' >&2
+                fi
               else
                 echo 'No previous container exists; operator intervention required' >&2
               fi

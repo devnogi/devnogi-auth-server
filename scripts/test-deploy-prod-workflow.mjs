@@ -22,10 +22,12 @@ test('the built digest is validated, deployed and recoverable', () => {
   assert.match(workflow, /auth-server@\$\{\{ needs.build-and-push.outputs.digest \}\}/);
   assert.match(compose, /image: \$\{IMAGE_REF:\?Set the immutable GHCR image digest\}/);
   assert.match(workflow, /Prior deployment files are missing; refusing an unrecoverable update/);
-  assert.match(workflow, /! health_ok; then[\s\S]*IMAGE_REF="\$old_image_ref"[\s\S]*\/opt\/auth\/docker-compose-auth-prod.yml[\s\S]*exit 1/);
+  assert.match(workflow, /! health_ok "\$server_port"; then[\s\S]*IMAGE_REF="\$old_image_ref"[\s\S]*health_ok "\$old_port"[\s\S]*exit 1/);
   assert.match(workflow, /preflight-prod-deploy\.sh/);
   assert.match(workflow, /docker manifest inspect "\$IMAGE_REF"/);
   assert.match(workflow, /appleboy\/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2/);
+  assert.equal((workflow.match(/fingerprint: \$\{\{ secrets.PROD2_HOST_FINGERPRINT \}\}/g) || []).length, 3);
+  assert.match(workflow, /test -n "\$HOST_FINGERPRINT"/);
 });
 
 test('production retains env file and MinIO endpoint contract', () => {

@@ -129,5 +129,5 @@ jobs:
         with:
           node-version: '22'
       - name: Validate production deployment guards
-        run: node --test scripts/test-deploy-prod-workflow.mjs
+        run: node --test scripts/test-deploy-prod-workflow.mjs scripts/test-deploy-prod-behavior.mjs
       - run: node scripts/secret-scan.mjs
