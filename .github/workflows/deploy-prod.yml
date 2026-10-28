@@ -1,6 +1,8 @@
 name: Deploy Auth Server to On-Premise 2
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 env:
@@ -15,27 +17,20 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # 빠른 개선을 위한 dev 브랜치 운영 배포 허용: 2026-12-31까지 (KST).
   preflight:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     steps:
-      - name: Check branch and temporary dev deployment window
+      - name: Check production branch
         shell: bash
         run: |
           case "$GITHUB_REF" in
             refs/heads/main) ;;
-            refs/heads/dev)
-              if [ "$(date -u +%s)" -ge 1798729200 ]; then
-                echo 'dev production deployment expired at 2027-01-01 00:00 KST' >&2
-                exit 1
-              fi
-              ;;
             *) echo "Production deployment is not allowed from $GITHUB_REF" >&2; exit 1 ;;
           esac
 
   build-and-push:
-    if: github.event_name == 'workflow_dispatch' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     needs: preflight
     environment: production
     runs-on: ubuntu-latest
@@ -46,15 +41,6 @@ jobs:
       digest: ${{ steps.build.outputs.digest }}
 
     steps:
-      - name: Recheck temporary dev deployment window after build approval
-        if: github.ref == 'refs/heads/dev'
-        shell: bash
-        run: |
-          if [ "$(date -u +%s)" -ge 1798729200 ]; then
-            echo 'dev production deployment expired after build approval' >&2
-            exit 1
-          fi
-
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -76,22 +62,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Recheck dev window before publishing image
-        if: github.ref == 'refs/heads/dev'
-        shell: bash
-        run: |
-          if [ "$(date -u +%s)" -ge 1798729200 ]; then
-            echo 'dev production deployment expired before image publication' >&2
-            exit 1
-          fi
-
       - name: Build and push Docker image
         id: build
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/auth-server:${{ github.ref == 'refs/heads/dev' && format('dev-{0}', github.sha) || github.sha }}
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/auth-server:${{ github.sha }}
 
       - name: Verify pushed image digest
         env:
@@ -105,7 +82,7 @@ jobs:
           docker buildx imagetools inspect "$IMAGE_REF" >/dev/null
 
   deploy:
-    if: github.event_name == 'workflow_dispatch' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     environment: production
     needs: [preflight, build-and-push]
     runs-on: ubuntu-latest
@@ -113,15 +90,6 @@ jobs:
       contents: read
       packages: read
     steps:
-      - name: Recheck temporary dev deployment window after deploy approval
-        if: github.ref == 'refs/heads/dev'
-        shell: bash
-        run: |
-          if [ "$(date -u +%s)" -ge 1798729200 ]; then
-            echo 'dev production deployment expired after deploy approval' >&2
-            exit 1
-          fi
-
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -138,15 +106,6 @@ jobs:
           printf '%s' "$GHCR_TOKEN" > .deploy-secrets/.ghcr-token
           test -s .deploy-secrets/.env.prod
           test -s .deploy-secrets/.ghcr-token
-
-      - name: Recheck dev window before first SSH connection
-        if: github.ref == 'refs/heads/dev'
-        shell: bash
-        run: |
-          if [ "$(date -u +%s)" -ge 1798729200 ]; then
-            echo 'dev production deployment expired before server access' >&2
-            exit 1
-          fi
 
       - name: Prepare staging directory on Server 2
         uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
@@ -209,22 +168,30 @@ jobs:
                 *@sha256:*) printf '%s\n' "$old_image_ref" > /opt/auth/.previous-image-ref ;;
                 *) echo 'Running image has no recoverable immutable digest' >&2; exit 1 ;;
               esac
+              test -s /opt/auth/docker-compose-auth-prod.yml && test -s /opt/auth/.env.prod || {
+                echo 'Prior deployment files are missing; refusing an unrecoverable update' >&2
+                exit 1
+              }
             fi
 
-            if [ '${{ github.ref }}' = 'refs/heads/dev' ] && [ "$(date -u +%s)" -ge 1798729200 ]; then
-              echo 'dev production deployment expired before container update' >&2
+            health_ok() {
+              attempt=0
+              until curl --fail --silent --max-time 3 --output /dev/null "http://127.0.0.1:${server_port}/api/auth/random-nickname"; do
+                attempt=$((attempt + 1))
+                [ "$attempt" -lt 24 ] || return 1
+                sleep 5
+              done
+            }
+            if ! docker compose -p auth -f docker-compose-auth-prod.yml --env-file "$DEPLOY_ENV_FILE" up -d --no-deps --wait --wait-timeout 120 auth-server || ! health_ok; then
+              echo 'Auth deployment failed; restoring the prior deployment' >&2
+              if [ -n "$old_image_id" ]; then
+                IMAGE_REF="$old_image_ref" DEPLOY_ENV_FILE=/opt/auth/.env.prod \
+                  docker compose -p auth -f /opt/auth/docker-compose-auth-prod.yml --env-file /opt/auth/.env.prod up -d --no-deps --wait --wait-timeout 120 auth-server || echo 'Rollback failed; operator intervention required' >&2
+              else
+                echo 'No previous container exists; operator intervention required' >&2
+              fi
               exit 1
             fi
-            docker compose -p auth -f docker-compose-auth-prod.yml --env-file "$DEPLOY_ENV_FILE" up -d --no-deps --wait --wait-timeout 120 auth-server
-            attempt=0
-            until curl --fail --silent --max-time 3 --output /dev/null "http://127.0.0.1:${server_port}/api/auth/random-nickname"; do
-              attempt=$((attempt + 1))
-              if [ "$attempt" -ge 24 ]; then
-                echo 'Auth did not pass its HTTP and DB smoke check; prior deployment files remain under /opt/auth' >&2
-                exit 1
-              fi
-              sleep 5
-            done
 
             if [ -f /opt/auth/.env.prod ]; then
               cp /opt/auth/.env.prod /opt/auth/.env.prod.previous
