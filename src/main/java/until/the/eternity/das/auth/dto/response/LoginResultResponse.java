@@ -4,9 +4,4 @@ import lombok.Builder;
 import until.the.eternity.das.user.entity.User;
 
 @Builder
-public record LoginResultResponse(
-  User user,
-  String accessToken,
-  String refreshToken
-) {
-}
+public record LoginResultResponse(User user, String accessToken, String refreshToken) {}

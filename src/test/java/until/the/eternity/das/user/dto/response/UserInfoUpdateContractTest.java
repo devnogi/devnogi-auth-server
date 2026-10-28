@@ -25,7 +25,9 @@ class UserInfoUpdateContractTest {
 
     @Test
     void registeredEmailUserPublishesNullServerAndProfile() throws Exception {
-        var request = new SignUpRequest("contract@example.invalid", "synthetic-password", "contract-user", null);
+        var request =
+                new SignUpRequest(
+                        "contract@example.invalid", "synthetic-password", "contract-user", null);
         var user = converter.fromUserSignUpRequestToUser(request, "synthetic-hash", role, null);
         assertRegisteredUserMatchesFixture(user);
     }
@@ -39,7 +41,9 @@ class UserInfoUpdateContractTest {
 
     @Test
     void verifiedUserPublishesServerAndOptionalProfile() throws Exception {
-        var event = new UserInfoUpdateEvent(42L, "contract-user", "https://example.invalid/profile.png", "류트");
+        var event =
+                new UserInfoUpdateEvent(
+                        42L, "contract-user", "https://example.invalid/profile.png", "류트");
         JsonNode payload = assertPayloadMatchesSchema(event);
         assertEquals("류트", payload.path("serverName").asText());
         assertEquals(event.profileImageUrl(), payload.path("profileImageUrl").asText());
@@ -52,14 +56,19 @@ class UserInfoUpdateContractTest {
         assertNull(user.getServerName());
         assertNull(user.getProfileImageUrl());
         JsonNode payload = assertPayloadMatchesSchema(UserInfoUpdateEvent.of(user));
-        JsonNode fixture = mapper.readTree(Files.readString(Path.of("contracts/user-info-update.example.json")));
+        JsonNode fixture =
+                mapper.readTree(
+                        Files.readString(Path.of("contracts/user-info-update.example.json")));
         assertEquals(fixture, payload);
     }
 
     private JsonNode assertPayloadMatchesSchema(UserInfoUpdateEvent event) throws Exception {
         try (var serializer = new JsonSerializer<UserInfoUpdateEvent>()) {
-            JsonNode payload = mapper.readTree(serializer.serialize("USER_INFO_UPDATE_EVENT", event));
-            JsonNode schema = mapper.readTree(Files.readString(Path.of("contracts/user-info-update.schema.json")));
+            JsonNode payload =
+                    mapper.readTree(serializer.serialize("USER_INFO_UPDATE_EVENT", event));
+            JsonNode schema =
+                    mapper.readTree(
+                            Files.readString(Path.of("contracts/user-info-update.schema.json")));
             Set<String> declared = new HashSet<>();
             schema.path("properties").fieldNames().forEachRemaining(declared::add);
             Set<String> actual = new HashSet<>();
@@ -71,7 +80,12 @@ class UserInfoUpdateContractTest {
             for (String field : declared) {
                 JsonNode value = payload.get(field);
                 JsonNode rule = schema.path("properties").path(field);
-                String type = value.isNull() ? "null" : value.isIntegralNumber() ? "integer" : value.isTextual() ? "string" : "unsupported";
+                String type =
+                        value.isNull()
+                                ? "null"
+                                : value.isIntegralNumber()
+                                        ? "integer"
+                                        : value.isTextual() ? "string" : "unsupported";
                 JsonNode allowed = rule.path("type");
                 boolean valid = allowed.isTextual() && allowed.asText().equals(type);
                 for (JsonNode candidate : allowed) {

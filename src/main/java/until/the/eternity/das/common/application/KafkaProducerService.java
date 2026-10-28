@@ -10,10 +10,9 @@ import until.the.eternity.das.user.dto.response.UserInfoUpdateEvent;
 @RequiredArgsConstructor
 public class KafkaProducerService {
 
-  private final KafkaTemplate<String, UserInfoUpdateEvent> kafkaTemplate;
+    private final KafkaTemplate<String, UserInfoUpdateEvent> kafkaTemplate;
 
-  public void sendUserInfoUpdateEvent(UserInfoUpdateEvent event) {
-    kafkaTemplate.send(UserUpdateConstant.INFO, event);
-  }
-
+    public void sendUserInfoUpdateEvent(UserInfoUpdateEvent event) {
+        kafkaTemplate.send(UserUpdateConstant.INFO, event);
+    }
 }

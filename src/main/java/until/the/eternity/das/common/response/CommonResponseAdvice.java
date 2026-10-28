@@ -17,48 +17,48 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyAdvice;
 @RequiredArgsConstructor
 public class CommonResponseAdvice implements ResponseBodyAdvice<Object> {
 
-  private final ObjectMapper objectMapper;
+    private final ObjectMapper objectMapper;
 
-  @Override
-  public boolean supports(MethodParameter returnType, Class<? extends HttpMessageConverter<?>> converterType) {
-    return !returnType.getParameterType()
-      .equals(Void.TYPE)
-      && !CommonResponse.class.isAssignableFrom(returnType.getParameterType());
-  }
-
-  @Override
-  public Object beforeBodyWrite(Object body,
-                                MethodParameter returnType,
-                                MediaType selectedContentType,
-                                Class<? extends HttpMessageConverter<?>> selectedConverterType,
-                                org.springframework.http.server.ServerHttpRequest request,
-                                org.springframework.http.server.ServerHttpResponse response) {
-
-    try {
-      if (request instanceof ServletServerHttpRequest servletRequest) {
-        HttpServletRequest httpRequest = servletRequest.getServletRequest();
-        String path = httpRequest.getRequestURI();
-
-        if (isSwaggerPath(path)) {
-          return body;
-        }
-      }
-
-      if (body instanceof CommonResponse) {
-        return body;
-      }
-
-      return CommonResponse.success(body);
-    } catch (Exception e) {
-      return body;
+    @Override
+    public boolean supports(
+            MethodParameter returnType, Class<? extends HttpMessageConverter<?>> converterType) {
+        return !returnType.getParameterType().equals(Void.TYPE)
+                && !CommonResponse.class.isAssignableFrom(returnType.getParameterType());
     }
-  }
 
-  private boolean isSwaggerPath(String path) {
-    return path != null && (
-      path.startsWith("/v3/api-docs") ||
-        path.startsWith("/swagger-ui") ||
-        path.startsWith("/swagger-resources")
-    );
-  }
+    @Override
+    public Object beforeBodyWrite(
+            Object body,
+            MethodParameter returnType,
+            MediaType selectedContentType,
+            Class<? extends HttpMessageConverter<?>> selectedConverterType,
+            org.springframework.http.server.ServerHttpRequest request,
+            org.springframework.http.server.ServerHttpResponse response) {
+
+        try {
+            if (request instanceof ServletServerHttpRequest servletRequest) {
+                HttpServletRequest httpRequest = servletRequest.getServletRequest();
+                String path = httpRequest.getRequestURI();
+
+                if (isSwaggerPath(path)) {
+                    return body;
+                }
+            }
+
+            if (body instanceof CommonResponse) {
+                return body;
+            }
+
+            return CommonResponse.success(body);
+        } catch (Exception e) {
+            return body;
+        }
+    }
+
+    private boolean isSwaggerPath(String path) {
+        return path != null
+                && (path.startsWith("/v3/api-docs")
+                        || path.startsWith("/swagger-ui")
+                        || path.startsWith("/swagger-resources"));
+    }
 }

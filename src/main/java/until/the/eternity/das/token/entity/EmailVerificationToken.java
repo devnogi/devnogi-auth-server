@@ -1,17 +1,17 @@
 package until.the.eternity.das.token.entity;
 
 import jakarta.persistence.*;
+import java.time.LocalDateTime;
 import lombok.*;
 import org.hibernate.annotations.Comment;
 import until.the.eternity.das.user.entity.User;
 
-import java.time.LocalDateTime;
-
 @Entity
-@Table(name = "email_verification_tokens",
+@Table(
+        name = "email_verification_tokens",
         indexes = {
-                @Index(name = "user_id", columnList = "user_id"),
-                @Index(name = "idx_verification_token", columnList = "token")
+            @Index(name = "user_id", columnList = "user_id"),
+            @Index(name = "idx_verification_token", columnList = "token")
         })
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)

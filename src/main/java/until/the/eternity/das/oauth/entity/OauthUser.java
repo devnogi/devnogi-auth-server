@@ -1,16 +1,14 @@
 package until.the.eternity.das.oauth.entity;
 
-
-
 import jakarta.persistence.*;
+import java.time.LocalDateTime;
 import lombok.*;
 import org.hibernate.annotations.Comment;
 import until.the.eternity.das.user.entity.User;
 
-import java.time.LocalDateTime;
-
 @Entity
-@Table(name = "oauth_users",
+@Table(
+        name = "oauth_users",
         uniqueConstraints = @UniqueConstraint(columnNames = {"provider", "provider_user_id"}))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)

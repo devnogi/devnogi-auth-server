@@ -1,6 +1,5 @@
 package until.the.eternity.das.role.entity;
 
-
 import jakarta.persistence.*;
 import lombok.*;
 import until.the.eternity.das.role.entity.enums.Name;
@@ -13,16 +12,15 @@ import until.the.eternity.das.role.entity.enums.Name;
 @Builder
 public class Role {
 
-  @Id
-  @GeneratedValue(strategy = GenerationType.IDENTITY)
-  @Column(name = "id")
-  private Long id;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
 
-  @Column(nullable = false, unique = true, length = 50)
-  @Enumerated(EnumType.STRING)
-  private Name name;
+    @Column(nullable = false, unique = true, length = 50)
+    @Enumerated(EnumType.STRING)
+    private Name name;
 
-  @Column(length = 255)
-  private String description;
-
+    @Column(length = 255)
+    private String description;
 }
