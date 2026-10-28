@@ -5,6 +5,7 @@ import { test } from 'node:test';
 
 const workflow = readFileSync(new URL('../.github/workflows/deploy-prod.yml', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 const compose = readFileSync(new URL('../docker-compose-auth-prod.yml', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+const application = readFileSync(new URL('../src/main/resources/application-sample.yml', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 const cutoff = Date.UTC(2026, 11, 31, 15) / 1000;
 const bash = process.env.DEPLOY_TEST_BASH || 'bash';
 
@@ -112,4 +113,12 @@ test('main and dev tags both deploy the verified build digest', () => {
   assert.ok(deploy.includes('docker manifest inspect "$IMAGE_REF"'));
   assert.ok(compose.includes('image: ${IMAGE_REF:?Set the immutable GHCR image digest}'));
   assert.doesNotMatch(compose, /AUTH_IMAGE_TAG|:latest/);
+});
+
+test('production uses the env file and a single MinIO endpoint source', () => {
+  assert.match(compose, /env_file:\n\s+- \$\{DEPLOY_ENV_FILE:-\.env\.prod\}/);
+  assert.match(compose, /SPRING_PROFILES_ACTIVE=prod/);
+  assert.doesNotMatch(compose, /JAVA_OPTS|SPRING_CLOUD_AWS_S3_ENDPOINT/);
+  assert.match(application, /endpoint: \$\{MINIO_ENDPOINT\}/);
+  assert.doesNotMatch(application, /OCI_NAMESPACE|MAIL_PASSWORD|^\s+mail:/m);
 });

@@ -18,21 +18,6 @@ management:
 spring:
   application:
     name: devnogi-auth-server
-  mail:
-    host: smtp.gmail.com
-    port: 587
-    username: ${MAIL_USERNAME:devnogi.auth@gmail.com}
-    password: ${MAIL_PASSWORD}
-    properties:
-      mail:
-        smtp:
-          auth: true
-          starttls:
-            enable: true
-            required: true
-          connectiontimeout: 5000
-          timeout: 5000
-          writetimeout: 5000
   web:
     resources:
       static-locations: classpath:/static/
@@ -121,7 +106,7 @@ spring:
         access-key: ${AWS_ACCESS_KEY}
         secret-key: ${AWS_SECRET_KEY}
       s3:
-        endpoint: https://${OCI_NAMESPACE}.compat.objectstorage.${AWS_REGION}.oraclecloud.com
+        endpoint: ${MINIO_ENDPOINT}
         path-style-access-enabled: true
   servlet:
     multipart:

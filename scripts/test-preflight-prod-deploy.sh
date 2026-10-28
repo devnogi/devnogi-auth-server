@@ -8,7 +8,6 @@ mkdir -p "$test_dir/bin"
 cp "$repository_root/docker-compose-auth-prod.yml" "$test_dir/"
 cp "$repository_root/scripts/preflight-prod-deploy.sh" "$test_dir/"
 cp "$repository_root/.env.example" "$test_dir/base.env"
-printf '%s\n' 'MINIO_ENDPOINT=http://example.invalid' >> "$test_dir/base.env"
 # Convert the HTTP localhost fixture to a synthetic production cookie scope.
 sed 's/^JWT_COOKIE_DOMAIN=.*/JWT_COOKIE_DOMAIN=.memonogi.com/;
      s/^JWT_COOKIE_SECURE=.*/JWT_COOKIE_SECURE=true/;
@@ -60,7 +59,7 @@ reject_setting() {
   expect_rejected "$description"
 }
 
-for key in JWT_ACCESS_TOKEN_VALIDITY JWT_REFRESH_TOKEN_VALIDITY \
+for key in S3_BUCKET TZ MINIO_ENDPOINT JWT_ACCESS_TOKEN_VALIDITY JWT_REFRESH_TOKEN_VALIDITY \
            JWT_COOKIE_DOMAIN JWT_COOKIE_SECURE JWT_COOKIE_SAME_SITE; do
   sed "/^${key}=/d" prod.env > .env.prod
   expect_rejected "missing $key"
@@ -69,6 +68,7 @@ for key in JWT_ACCESS_TOKEN_VALIDITY JWT_REFRESH_TOKEN_VALIDITY \
   expect_rejected "duplicate $key"
 done
 
+reject_setting TZ UTC 'wrong production timezone'
 reject_setting JWT_ACCESS_TOKEN_VALIDITY 3600 'legacy access default in milliseconds'
 reject_setting JWT_REFRESH_TOKEN_VALIDITY 86400 'legacy refresh default in milliseconds'
 reject_setting JWT_ACCESS_TOKEN_VALIDITY 0 'zero access lifetime'

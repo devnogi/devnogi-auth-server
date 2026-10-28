@@ -24,11 +24,11 @@ fi
 
 # These values are required by the packaged application.yml or the Compose file.
 # Check names and non-empty values without sourcing or printing the secret file.
-required_keys='SERVER_PORT BASE_URL DB_HOST DB_PORT DB_SCHEMA DB_USER DB_PASSWORD
+required_keys='SERVER_PORT BASE_URL TZ DB_HOST DB_PORT DB_SCHEMA DB_USER DB_PASSWORD
 GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET KAKAO_CLIENT_ID KAKAO_CLIENT_SECRET
-NAVER_CLIENT_ID NAVER_CLIENT_SECRET MAIL_PASSWORD KAFKA_BOOTSTRAP_SERVERS
+NAVER_CLIENT_ID NAVER_CLIENT_SECRET KAFKA_BOOTSTRAP_SERVERS
 AWS_REGION AWS_ACCESS_KEY AWS_SECRET_KEY JWT_SECRET_KEY
-NICKNAME_TICKET_SECRET USER_VERIFICATION_HASH_SECRET MINIO_ENDPOINT
+NICKNAME_TICKET_SECRET USER_VERIFICATION_HASH_SECRET MINIO_ENDPOINT S3_BUCKET
 JWT_ACCESS_TOKEN_VALIDITY JWT_REFRESH_TOKEN_VALIDITY
 JWT_COOKIE_DOMAIN JWT_COOKIE_SECURE JWT_COOKIE_SAME_SITE'
 for key in ${required_keys}; do
@@ -73,6 +73,10 @@ server_port=$(read_setting SERVER_PORT) || {
   echo "SERVER_PORT must appear exactly once" >&2
   exit 1
 }
+if [ "$(read_setting TZ)" != 'Asia/Seoul' ]; then
+  echo 'TZ must be Asia/Seoul in production' >&2
+  exit 1
+fi
 case "${server_port}" in
   ''|*[!0-9]*) echo "SERVER_PORT must be numeric" >&2; exit 1 ;;
 esac

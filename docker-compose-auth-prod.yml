@@ -7,8 +7,6 @@ services:
     env_file:
       - ${DEPLOY_ENV_FILE:-.env.prod}
     environment:
-      - JAVA_OPTS=-Xms256m -Xmx512m
-      - SPRING_CLOUD_AWS_S3_ENDPOINT=${MINIO_ENDPOINT}
       - SPRING_PROFILES_ACTIVE=prod
     deploy:
       resources:
