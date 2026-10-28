@@ -12,7 +12,7 @@ Linux/macOS/CI: `./gradlew verify --no-daemon`. check(테스트와 설정된 정
 
 ## 로컬 Docker
 
-MySQL(기본 호스트 3316)과 Kafka(9102)를 먼저 준비한다. 이 Compose는 DB와 Kafka를 만들지 않는다. Docker 빌드는 추적된 `application-sample.yml`을 이미지 안의 `application.yml`로 복사하고, 실행 시 환경 변수를 주입한다. 호스트의 실제 `application.yml`과 `.env` 파일은 이미지 빌드에서 제외한다. OAuth 로그인·메일·파일 업로드에는 실제 개발용 제공자 설정이 별도로 필요하다. 예제의 placeholder로 외부 기능이 성공한다고 보장하지 않는다.
+MySQL(기본 호스트 3316)과 Kafka(9102)를 먼저 준비한다. 이 Compose는 DB와 Kafka를 만들지 않는다. Docker 빌드는 추적된 `application-sample.yml`을 이미지 안의 `application.yml`로 복사하고, 실행 시 환경 변수를 주입한다. 호스트의 실제 `application.yml`과 `.env` 파일은 이미지 빌드에서 제외한다. OAuth 로그인·파일 업로드에는 실제 개발용 제공자 설정이 별도로 필요하다. 예제의 placeholder로 외부 기능이 성공한다고 보장하지 않는다.
 
 서비스 폴더에서 아래 명령을 사용한다. 기존 `.env.local`이 있으면 덮어쓰지 말고 필요한 키를 비교한다. Docker 실행에는 호스트 `application.yml` 복사가 필요 없다. IDE에서 직접 실행할 때만 샘플을 복사하고 실제 파일은 Git에 올리지 않는다.
 
@@ -25,6 +25,10 @@ docker compose --env-file .env.local -f docker-compose-local.yml up --build auth
 기본 포트: 8091. Compose의 env_file과 interpolation은 다르므로 --env-file을 생략하지 않는다. Linux에서는 host.docker.internal host-gateway 설정이 필요할 수 있다. 필요한 서비스만 지정해 Docker socket을 마운트하는 autoheal은 실행하지 않는다. config 통과는 기동·DB migration·외부 연동 성공의 증거가 아니다. 중단은 같은 파일과 --env-file로 stop을 실행한다. down -v는 데이터를 삭제하므로 별도 판단한다.
 
 ## CI와 배포
+
+운영 배포는 GitHub Secret `AUTH_SERVER_ENV`에서 임시 `.env.prod`를 생성하고 Compose의 `--env-file`과 `env_file`을 통해 컨테이너에 전달한다. Spring은 패키징된 `application.yml`의 환경 변수 placeholder를 사용한다. 호스트 `application.yml` override는 신규 배포의 설정 원본이 아니며, 기존 파일이 존재하면 workflow가 중단한다. MinIO endpoint는 완전한 URI인 `MINIO_ENDPOINT`에서 직접 읽고 `S3_BUCKET`을 별도로 요구한다.
+
+운영 preflight는 `SERVER_PORT`, `BASE_URL`, `TZ`, `DB_HOST`, `DB_PORT`, `DB_SCHEMA`, `DB_USER`, `DB_PASSWORD`, Google/Kakao/Naver의 각 `CLIENT_ID`와 `CLIENT_SECRET`, `KAFKA_BOOTSTRAP_SERVERS`, `AWS_REGION`, `AWS_ACCESS_KEY`, `AWS_SECRET_KEY`, `MINIO_ENDPOINT`, `S3_BUCKET`, `JWT_SECRET_KEY`, `JWT_ACCESS_TOKEN_VALIDITY`, `JWT_REFRESH_TOKEN_VALIDITY`, `JWT_COOKIE_DOMAIN`, `JWT_COOKIE_SECURE`, `JWT_COOKIE_SAME_SITE`, `NICKNAME_TICKET_SECRET`, `USER_VERIFICATION_HASH_SECRET`를 각각 한 번씩 비어 있지 않게 요구한다. `TZ`는 `Asia/Seoul`이어야 한다. 쿠키 값은 도메인 `.memonogi.com` 또는 `memonogi.com`, Secure `true`, SameSite `Lax`여야 한다. 선택적 OAuth, Kafka, 닉네임 및 인증 설정은 `application-sample.yml`의 기본값을 사용할 수 있다. 실제 환경 파일이나 비밀값을 Git에 넣지 않는다.
 
 PR 필수 검사 이름은 verify와 secret-scan이다. 원격 브랜치 보호에서 두 검사와 사람 리뷰를 필수로 지정해야 강제된다. YAML 파일만 추가해도 보호가 활성화되는 것은 아니다. 운영 이미지 게시와 배포는 `workflow_dispatch`로만 실행한다. `main` 수동 실행은 현재 `dev`의 SHA 태그를 게시하고 검증된 이미지 digest로 배포한다. 빠른 개선을 위해 2026-12-31 23:59:59 KST까지 승인받은 사람이 `dev`에서 수동 실행하면 `dev-<실행 SHA>` 태그를 게시하고 같은 build의 검증된 digest로 배포한다. 운영 Compose는 `IMAGE_REF` digest를 필수로 요구하며 `latest` 태그를 기본값으로 사용하지 않는다.
 
@@ -54,6 +58,6 @@ auth와 gateway의 `.env.example`에는 동일한 공개 합성 Base64 키가 �
 
 쿠키 생성·갱신·삭제는 같은 scope를 사용하고 이름, HttpOnly, Path=/는 유지한다. React의 logout 오류 경로도 같은 설정을 사용한다. 로컬 override를 공유/운영 환경에 적용하지 않는다. JWT는 응답 JSON이나 브라우저 JS 저장소로 옮기지 않는다.
 
-합성 계정은 기존 `POST /api/auth/signup`에 이미지 없이 등록한다. 첫 로그인 검증 전에 `account_locks`를 수동 생성하지 않는다. 이메일 로그인 → `/api/user/info` → refresh → 인증된 logout을 확인하고, BFF 경로/응답 필드는 [HTTP 계약](../contracts/openapi.yaml)을 따른다. 비로그인 API는 JSON/401을 반환하고 OAuth 브라우저 경로는 리다이렉트한다. 실제 OAuth, SMTP, S3 자격 증명은 이메일 로그인 검증에 필요하지 않다.
+합성 계정은 기존 `POST /api/auth/signup`에 이미지 없이 등록한다. 첫 로그인 검증 전에 `account_locks`를 수동 생성하지 않는다. 이메일 로그인 → `/api/user/info` → refresh → 인증된 logout을 확인하고, BFF 경로/응답 필드는 [HTTP 계약](../contracts/openapi.yaml)을 따른다. 비로그인 API는 JSON/401을 반환하고 OAuth 브라우저 경로는 리다이렉트한다. 실제 OAuth와 S3 자격 증명은 이메일 로그인 검증에 필요하지 않다.
 
 기존 JWT 형식에는 고유 토큰 ID가 없으므로 같은 초에 같은 사용자에게 발급한 토큰 값이 같을 수 있다. 동시/연속 로그인과 refresh 저장 중복 문제는 별도 정책 검토 대상이며 이번 변경은 JWT claims나 잠금 정책을 바꾸지 않는다. 실패 시 HTTP 상태와 오류 코드만 기록하고 비밀번호·Cookie 헤더·전체 JWT를 로그에 남기지 않는다.
