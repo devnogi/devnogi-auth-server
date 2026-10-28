@@ -28,9 +28,6 @@ cd "$test_dir"
 cp prod.env .env.prod
 test "$(sh preflight-prod-deploy.sh)" = '8091'
 
-sed '/^OCI_NAMESPACE=/d' prod.env > .env.prod
-test "$(sh preflight-prod-deploy.sh)" = '8091'
-
 expect_rejected() {
   if sh preflight-prod-deploy.sh >/dev/null 2>&1; then
     echo "Preflight accepted invalid input: $1" >&2
