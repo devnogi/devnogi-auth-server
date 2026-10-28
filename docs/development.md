@@ -2,13 +2,21 @@
 
 ## 검증
 
+처음 clone한 뒤 `./gradlew installGitHooks`로 저장소의 Git hook을 설치한다. Windows에서는 `gradlew.bat`을 사용한다.
+
+- `pre-commit`은 staged whitespace/conflict marker와 전체 Java 소스의 Spotless 포맷 및 import를 검사한다. 실패하면 `./gradlew spotlessApply`를 직접 실행하고 diff를 검토한 뒤 필요한 변경만 stage한다.
+- `pre-push`는 `./gradlew verify`로 테스트, Spotless, PMD와 bootJar를 검사하며 파일을 자동 수정하지 않는다.
+- 수동 정적 검사: `./gradlew lint --no-daemon`. PMD는 미사용 local과 private 멤버를 검사하며 동적 호출 여부를 완전히 증명하지 못한다.
+
+hook은 `--no-verify`로 우회할 수 있지만 PR CI의 `verify`가 같은 정적 검사를 다시 실행한다.
+
 Java 21을 설치하고 JAVA_HOME을 지정한다. Gradle은 저장소 wrapper를 사용한다.
 
 ```powershell
 .\gradlew.bat verify --no-daemon
 ```
 
-Linux/macOS/CI: `./gradlew verify --no-daemon`. check(테스트와 설정된 정적 검사) 및 bootJar를 실행한다. community/batch에는 spotlessCheck가 포함된다. 자동 포맷과 src 하위 REST Docs 재생성은 실행하지 않는다. 테스트 보고서는 build/reports/tests/test/index.html에 있다. 테스트 실패와 Java/의존성 다운로드 환경 오류를 구분해 기록한다.
+Linux/macOS/CI: `./gradlew verify --no-daemon`. check(테스트와 설정된 정적 검사) 및 bootJar를 실행한다. 자동 포맷과 src 하위 REST Docs 재생성은 실행하지 않는다. 테스트 보고서는 build/reports/tests/test/index.html에 있다. 테스트 실패와 Java/의존성 다운로드 환경 오류를 구분해 기록한다.
 
 ## 로컬 Docker
 

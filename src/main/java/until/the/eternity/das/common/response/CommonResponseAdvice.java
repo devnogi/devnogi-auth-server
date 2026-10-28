@@ -1,8 +1,6 @@
 package until.the.eternity.das.common.response;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
-import lombok.RequiredArgsConstructor;
 import org.springframework.core.MethodParameter;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -14,10 +12,7 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyAdvice;
 
 @Order(Ordered.HIGHEST_PRECEDENCE)
 @RestControllerAdvice
-@RequiredArgsConstructor
 public class CommonResponseAdvice implements ResponseBodyAdvice<Object> {
-
-    private final ObjectMapper objectMapper;
 
     @Override
     public boolean supports(

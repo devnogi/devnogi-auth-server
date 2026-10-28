@@ -1,0 +1,8 @@
+#!/bin/sh
+set -eu
+cd "$(git rev-parse --show-toplevel)"
+git diff --cached --check
+if ! ./gradlew spotlessCheck; then
+    echo 'Formatting failed. Run ./gradlew spotlessApply, review the changes, and stage them.' >&2
+    exit 1
+fi
