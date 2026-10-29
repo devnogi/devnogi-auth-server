@@ -11,6 +11,7 @@ jobs:
     uses: devnogi/ci-workflows/.github/workflows/spring-prod.yml@5c46d7aff8ce452b72ad8f6c18bcb5a09828384d
     with:
       service-profile: auth-mysql
+      deployment-target: prod2
       service-name: auth
       dockerfile: Dockerfile
       compose-file: docker-compose-auth-prod.yml
