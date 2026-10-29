@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   verify:
-    uses: devnogi/ci-workflows/.github/workflows/spring-ci.yml@5c46d7aff8ce452b72ad8f6c18bcb5a09828384d
+    uses: devnogi/ci-workflows/.github/workflows/spring-ci.yml@a60862fc2e2a5117c85efc1c6bd6b4033a82b3d9
     with:
       service-profile: auth-mysql
       service-name: auth

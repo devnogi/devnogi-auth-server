@@ -6,7 +6,7 @@ const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8').repl
 const ci = read('../.github/workflows/verify.yml');
 const prod = read('../.github/workflows/deploy-prod.yml');
 const compose = read('../docker-compose-auth-prod.yml');
-const revision = '5c46d7aff8ce452b72ad8f6c18bcb5a09828384d';
+const revision = 'a60862fc2e2a5117c85efc1c6bd6b4033a82b3d9';
 
 test('PR and diagnostic verification use the pinned Auth profile', () => {
   assert.match(ci, /pull_request:\n    branches: \[dev, main\]\n  workflow_dispatch:/);
