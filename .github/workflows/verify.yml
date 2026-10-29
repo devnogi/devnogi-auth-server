@@ -10,9 +10,9 @@ concurrency:
   cancel-in-progress: true
 jobs:
   verify:
-    uses: devnogi/ci-workflows/.github/workflows/spring-ci.yml@9506ea4c4dd3147e3ab15a8b06e780ce416908a6
+    uses: devnogi/ci-workflows/.github/workflows/spring-ci.yml@5c46d7aff8ce452b72ad8f6c18bcb5a09828384d
     with:
       service-profile: auth-mysql
-      image-name: devnogi-auth-server
+      service-name: auth
       dockerfile: Dockerfile
       compose-file: docker-compose-auth-prod.yml
