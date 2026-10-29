@@ -4,7 +4,6 @@
 - Read README.md and docs/development.md. Build/runtime configuration belongs here; cross-service work needs named provider and consumer contracts.
 - Java 21; use the committed Gradle wrapper. Verify: ./gradlew verify --no-daemon (Windows: .\gradlew.bat verify --no-daemon). This runs check plus bootJar, and never auto-formats sources.
 - Run ./gradlew spotlessApply explicitly only when intentionally formatting a change and this task exists. Never skip a failing test/check to claim success.
-- PR CI is verification only. Image publication and deployment are manual workflows, with a separate environment and branch guard. Do not dispatch, merge or deploy without explicit authorization.
-- Until 2026-12-31 23:59:59 KST, an approved operator may manually deploy `dev` to `production` after the environment's reviewer gate; the workflow blocks `dev` from 2027-01-01 00:00 KST. This temporary allowance does not authorize an agent to dispatch deployment.
-- The current production workflow publishes the commit SHA tag on `main` or `dev-<SHA>` on `dev`, then deploys the verified digest through the Compose `IMAGE_REF` requirement. Preserve the digest preflight, secret staging, pinned actions, and rollback/smoke checks when changing this path.
+- PR CI is verification only. A main push invokes the pinned shared production workflow, which verifies, publishes and deploys the immutable image digest. Manual recovery dispatch is restricted to main. Do not dispatch, merge or deploy without explicit authorization.
+- The shared workflow owns production preflight, secret staging, pinned actions and rollback/health checks. Production Compose requires `IMAGE_REF`; the old GHCR-specific `scripts/preflight-prod-deploy.sh` is retained for historical reference and is not used by the shared workflow.
 - Never commit actual .env files, keys, production data or credentials. Tests use synthetic fixtures.

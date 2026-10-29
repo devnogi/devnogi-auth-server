@@ -17,6 +17,8 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
 import org.yaml.snakeyaml.Yaml;
 import until.the.eternity.das.auth.application.AuthService;
 import until.the.eternity.das.auth.application.NicknameCandidateService;
@@ -58,12 +60,24 @@ import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(controllers = {AuthController.class, UserController.class}, properties = {
+@WebMvcTest(controllers = {AuthController.class, UserController.class, EmailLoginContractTest.HealthController.class}, properties = {
   "jwt.cookie-domain=", "jwt.cookie-secure=false", "jwt.cookie-same-site=Lax"
 })
 @Import({SecurityConfig.class, UserAuthenticationFilter.class, CookieUtil.class, JwtUtil.class,
-  EmailLoginContractTest.Configuration.class})
+  EmailLoginContractTest.Configuration.class, EmailLoginContractTest.HealthController.class})
 class EmailLoginContractTest {
+  @RestController
+  static class HealthController {
+    @GetMapping("/actuator/health")
+    java.util.Map<String, String> health() { return java.util.Map.of("status", "UP"); }
+  }
+
+  @Test
+  void healthIsPublicWhileUserInfoRemainsProtected() throws Exception {
+    mvc.perform(get("/actuator/health")).andExpect(status().isOk());
+    mvc.perform(get("/api/user/info")).andExpect(status().isUnauthorized());
+  }
+
   @TestConfiguration
   @EnableConfigurationProperties(JwtConstant.class)
   static class Configuration {}
