@@ -34,13 +34,13 @@ docker compose --env-file .env.local -f docker-compose-local.yml up --build auth
 
 ## CI와 배포
 
-운영 배포는 GitHub Secret `AUTH_SERVER_ENV`에서 임시 `.env.prod`를 생성하고 Compose의 `--env-file`과 `env_file`을 통해 컨테이너에 전달한다. Spring은 패키징된 `application.yml`의 환경 변수 placeholder를 사용한다. 호스트 `application.yml` override는 신규 배포의 설정 원본이 아니며, 기존 파일이 존재하면 workflow가 중단한다. MinIO endpoint는 완전한 URI인 `MINIO_ENDPOINT`에서 직접 읽고 `S3_BUCKET`을 별도로 요구한다.
+PR 검증은 `dev`와 `main` 대상 PR 및 수동 실행에서 고정 SHA의 공통 `spring-ci` workflow와 `auth-mysql` 프로필을 사용한다. 공통 프로필은 일반 `verify`, Docker/Compose 검증과 함께 기존 MySQL 8.0.42 기반 Flyway 이력·토큰 마이그레이션·닉네임·인증/OAuth/토큰 동시성 검사를 유지한다.
 
-운영 preflight는 `SERVER_PORT`, `BASE_URL`, `TZ`, `DB_HOST`, `DB_PORT`, `DB_SCHEMA`, `DB_USER`, `DB_PASSWORD`, Google/Kakao/Naver의 각 `CLIENT_ID`와 `CLIENT_SECRET`, `KAFKA_BOOTSTRAP_SERVERS`, `AWS_REGION`, `AWS_ACCESS_KEY`, `AWS_SECRET_KEY`, `MINIO_ENDPOINT`, `S3_BUCKET`, `JWT_SECRET_KEY`, `JWT_ACCESS_TOKEN_VALIDITY`, `JWT_REFRESH_TOKEN_VALIDITY`, `JWT_COOKIE_DOMAIN`, `JWT_COOKIE_SECURE`, `JWT_COOKIE_SAME_SITE`, `NICKNAME_TICKET_SECRET`, `USER_VERIFICATION_HASH_SECRET`를 각각 한 번씩 비어 있지 않게 요구한다. `TZ`는 `Asia/Seoul`이어야 한다. 쿠키 값은 도메인 `.memonogi.com` 또는 `memonogi.com`, Secure `true`, SameSite `Lax`여야 한다. 선택적 OAuth, Kafka, 닉네임 및 인증 설정은 `application-sample.yml`의 기본값을 사용할 수 있다. 실제 환경 파일이나 비밀값을 Git에 넣지 않는다.
+승인된 PR을 `main`에 병합해 생긴 push는 공통 `spring-prod` workflow에서 같은 commit을 재검증하고, Docker Hub `devanted/memonogi:auth-v1.0.0` 버전 태그를 게시한 뒤 해당 실행에서 확인한 불변 digest를 prod2에 배포한다. 배포 health가 성공한 뒤 GitHub Release `auth-v1.0.0`을 생성한다. 복구용 수동 실행도 `main`에서만 허용한다.
 
-PR 필수 검사 이름은 verify와 secret-scan이다. `main`에 PR이 병합되어 push되면 해당 SHA의 이미지를 빌드하고 검증된 digest를 운영에 배포한다. `main` 수동 실행은 복구용으로 사용할 수 있다. PR 생성과 다른 브랜치의 push는 운영 배포하지 않는다. 운영 Compose는 `IMAGE_REF` digest를 요구한다. 새 배포 실패 시 기존 digest와 운영 Compose·환경 파일로 복구를 시도하며 workflow는 실패 상태를 유지한다. 실행 중인 컨테이너가 있지만 기존 배포 파일이나 digest가 없으면 교체를 중단한다.
+운영 Compose는 `IMAGE_REF`를 필수로 요구하고 공통 workflow가 production Environment의 prod2 설정과 `PROD2_ENV_FILE`을 사용한다. 대상 서비스만 교체하며 health 실패 시 직전 image digest와 배포 파일을 복원한다. `/actuator/health`는 localhost 운영 확인을 위해 인증 없이 접근 가능하지만 나머지 API 인증 정책은 유지한다.
 
-운영 연결에는 독립적으로 확인한 서버 호스트 키의 SHA256 지문을 GitHub production 환경의 `PROD2_HOST_FINGERPRINT` secret으로 등록해야 한다. SSH와 SCP 모두 이 지문을 검증한다. 복구 후에도 이전 환경의 포트로 HTTP/DB smoke 검사를 수행하고 실패를 별도로 보고한다.
+기존 GHCR 전용 `scripts/preflight-prod-deploy.sh`와 그 테스트는 과거 배포 경로 검증 자료로 보존하지만 공통 workflow에서는 실행하지 않는다. 호출자 계약은 `node --test scripts/workflow-contract.test.mjs`로 확인한다. 실제 환경 파일이나 비밀값은 Git에 넣지 않는다.
 
 닉네임 정책 변경의 MySQL 검증은 PR `verify` job에서 MySQL 8.0.42에 실제 Flyway 이력을 적용하는 `NicknameMigrationMySqlTest`와 인증·마이페이지 동시 갱신을 확인하는 `NicknameConcurrencyMySqlTest`를 순서대로 필수 실행한다. 로컬에서는 격리된 임시 컨테이너를 만드는 `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-nickname-mysql.ps1 -Image mysql:8.0.42`로 같은 검사를 실행한다. 일반 `verify`는 MySQL 환경 변수가 없으면 해당 통합 테스트를 건너뛰므로, 일반 `verify`만으로 DB 제약이나 동시성을 검증했다고 주장하지 않는다.
 
