@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
-const pin = '2b4fbf8f7ab7403959f4641fe6d175b832ffe331';
+const pin = 'c5b33bfa84762986d47037f5ce3eca14a1c516ca';
 const ci = read('.github/workflows/verify.yml');
 const prod = read('.github/workflows/deploy-prod.yml');
 const build = read('build.gradle.kts');
@@ -31,7 +31,7 @@ test('production caller only permits main push or manual dispatch', () => {
   assert.match(prod, /health-timeout: '300'/);
   assert.match(prod, /platform: linux\/amd64/);
   assert.match(prod, /secrets: inherit/);
-  assert.match(build, /^version = "1\.0\.0-SNAPSHOT"$/m);
+  assert.match(build, /^version = "1\.0\.1-SNAPSHOT"$/m);
 });
 
 test('callers agree on Auth inputs and health deployment contracts', () => {
