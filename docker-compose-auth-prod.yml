@@ -1,6 +1,6 @@
 services:
   auth-server:
-    image: ${IMAGE_REF:?Set the immutable GHCR image digest}
+    image: ${IMAGE_REF:?IMAGE_REF is required}
     container_name: auth-server
     ports:
       - "${SERVER_PORT}:${SERVER_PORT}"

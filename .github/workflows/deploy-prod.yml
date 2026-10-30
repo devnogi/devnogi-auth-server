@@ -1,218 +1,41 @@
-name: Deploy Auth Server to On-Premise 2
+name: Production deployment
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
-
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
-  group: auth-production-deploy
+  group: auth-production
   cancel-in-progress: false
 
 jobs:
-  preflight:
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+  workflow-contract:
+    name: workflow-contract
     runs-on: ubuntu-latest
     steps:
-      - name: Check production branch
-        shell: bash
-        run: |
-          case "$GITHUB_REF" in
-            refs/heads/main) ;;
-            *) echo "Production deployment is not allowed from $GITHUB_REF" >&2; exit 1 ;;
-          esac
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Verify workflow contract
+        run: node --test scripts/workflow-contract.test.mjs
 
-  build-and-push:
+  production:
+    needs: workflow-contract
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-    needs: preflight
-    environment: production
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    outputs:
-      digest: ${{ steps.build.outputs.digest }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-
-      - name: Build with Gradle
-        run: |
-          chmod +x gradlew
-          ./gradlew verify --no-daemon
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push Docker image
-        id: build
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/auth-server:${{ github.sha }}
-
-      - name: Verify pushed image digest
-        env:
-          IMAGE_REF: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/auth-server@${{ steps.build.outputs.digest }}
-        run: |
-          set -eu
-          case "$IMAGE_REF" in
-            *@sha256:*) ;;
-            *) echo 'Build did not return an image digest' >&2; exit 1 ;;
-          esac
-          docker buildx imagetools inspect "$IMAGE_REF" >/dev/null
-
-  deploy:
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-    environment: production
-    needs: [preflight, build-and-push]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: read
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Prepare deployment secrets for transfer
-        shell: bash
-        env:
-          AUTH_SERVER_ENV: ${{ secrets.AUTH_SERVER_ENV }}
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HOST_FINGERPRINT: ${{ secrets.PROD2_HOST_FINGERPRINT }}
-        run: |
-          set -euo pipefail
-          umask 077
-          mkdir -p .deploy-secrets
-          printf '%s\n' "$AUTH_SERVER_ENV" > .deploy-secrets/.env.prod
-          printf '%s' "$GHCR_TOKEN" > .deploy-secrets/.ghcr-token
-          test -s .deploy-secrets/.env.prod
-          test -s .deploy-secrets/.ghcr-token
-          test -n "$HOST_FINGERPRINT" || { echo 'Missing trusted PROD2_HOST_FINGERPRINT' >&2; exit 1; }
-
-      - name: Prepare staging directory on Server 2
-        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
-        with:
-          host: ${{ secrets.PROD2_HOST }}
-          username: ${{ secrets.PROD2_USER }}
-          key: ${{ secrets.PROD2_PEM_KEY }}
-          port: ${{ secrets.PROD2_SSH_PORT }}
-          fingerprint: ${{ secrets.PROD2_HOST_FINGERPRINT }}
-          script: umask 077; install -d -m 700 /opt/auth/.candidate; chmod 700 /opt/auth/.candidate
-
-      - name: Copy deployment files to Server 2
-        uses: appleboy/scp-action@ff85246acaad7bdce478db94a363cd2bf7c90345 # v1.0.0
-        with:
-          host: ${{ secrets.PROD2_HOST }}
-          username: ${{ secrets.PROD2_USER }}
-          key: ${{ secrets.PROD2_PEM_KEY }}
-          port: ${{ secrets.PROD2_SSH_PORT }}
-          fingerprint: ${{ secrets.PROD2_HOST_FINGERPRINT }}
-          source: "docker-compose-auth-prod.yml,scripts/preflight-prod-deploy.sh,.deploy-secrets/.env.prod,.deploy-secrets/.ghcr-token"
-          target: "/opt/auth/.candidate/"
-          overwrite: true
-
-      - name: Remove runner deployment secrets
-        if: always()
-        shell: bash
-        run: rm -rf .deploy-secrets
-
-      - name: Setup and Execute Docker on Server 2
-        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
-        with:
-          host: ${{ secrets.PROD2_HOST }}
-          username: ${{ secrets.PROD2_USER }}
-          key: ${{ secrets.PROD2_PEM_KEY }}
-          port: ${{ secrets.PROD2_SSH_PORT }}
-          fingerprint: ${{ secrets.PROD2_HOST_FINGERPRINT }}
-          script: |
-            set -eu
-            cd /opt/auth/.candidate
-            umask 077
-            chmod 700 .deploy-secrets
-            chmod 600 .deploy-secrets/.env.prod .deploy-secrets/.ghcr-token
-            export DOCKER_CONFIG="$(mktemp -d)"
-            trap 'rm -f .deploy-secrets/.ghcr-token .deploy-secrets/.env.prod; rm -rf "$DOCKER_CONFIG"' EXIT
-            export IMAGE_NAME='${{ github.repository }}'
-            export IMAGE_REF='ghcr.io/${{ github.repository }}/auth-server@${{ needs.build-and-push.outputs.digest }}'
-            export DEPLOY_ENV_FILE='.deploy-secrets/.env.prod'
-
-            if [ -e /opt/auth/config/application.yml ] || [ -L /opt/auth/config/application.yml ]; then
-              echo 'External production application.yml exists; compare its settings and obtain operational approval before removing this gate' >&2
-              exit 1
-            fi
-
-            server_port="$(sh scripts/preflight-prod-deploy.sh)"
-            docker login ghcr.io -u '${{ github.actor }}' --password-stdin < .deploy-secrets/.ghcr-token
-            docker manifest inspect "$IMAGE_REF" >/dev/null
-            docker compose -p auth -f docker-compose-auth-prod.yml --env-file "$DEPLOY_ENV_FILE" pull auth-server
-
-            old_image_id="$(docker inspect auth-server --format '{{.Image}}' 2>/dev/null || true)"
-            if [ -n "$old_image_id" ]; then
-              old_image_ref="$(docker image inspect "$old_image_id" --format '{{index .RepoDigests 0}}' 2>/dev/null || true)"
-              case "$old_image_ref" in
-                *@sha256:*) printf '%s\n' "$old_image_ref" > /opt/auth/.previous-image-ref ;;
-                *) echo 'Running image has no recoverable immutable digest' >&2; exit 1 ;;
-              esac
-              test -s /opt/auth/docker-compose-auth-prod.yml && test -s /opt/auth/.env.prod || {
-                echo 'Prior deployment files are missing; refusing an unrecoverable update' >&2
-                exit 1
-              }
-            fi
-
-            health_ok() {
-              check_port="$1"
-              attempt=0
-              until curl --fail --silent --max-time 3 --output /dev/null "http://127.0.0.1:${check_port}/api/auth/random-nickname"; do
-                attempt=$((attempt + 1))
-                [ "$attempt" -lt 24 ] || return 1
-                sleep 5
-              done
-            }
-            if ! docker compose -p auth -f docker-compose-auth-prod.yml --env-file "$DEPLOY_ENV_FILE" up -d --no-deps --wait --wait-timeout 120 auth-server || ! health_ok "$server_port"; then
-              echo 'Auth deployment failed; restoring the prior deployment' >&2
-              if [ -n "$old_image_id" ]; then
-                old_port="$(awk -F= '$1 == "SERVER_PORT" { count++; value=$2 } END { if (count == 1) print value; else exit 1 }' /opt/auth/.env.prod)" || { echo 'Rollback health port missing or duplicated' >&2; exit 1; }
-                case "$old_port" in ''|*[!0-9]*) echo 'Rollback health port invalid' >&2; exit 1 ;; esac
-                if ! IMAGE_REF="$old_image_ref" DEPLOY_ENV_FILE=/opt/auth/.env.prod \
-                  docker compose -p auth -f /opt/auth/docker-compose-auth-prod.yml --env-file /opt/auth/.env.prod up -d --no-deps --wait --wait-timeout 120 auth-server; then
-                  echo 'Rollback failed; operator intervention required' >&2
-                elif ! health_ok "$old_port"; then
-                  echo 'Rollback health check failed; operator intervention required' >&2
-                else
-                  echo 'Rollback restored prior image and passed HTTP/DB smoke check' >&2
-                fi
-              else
-                echo 'No previous container exists; operator intervention required' >&2
-              fi
-              exit 1
-            fi
-
-            if [ -f /opt/auth/.env.prod ]; then
-              cp /opt/auth/.env.prod /opt/auth/.env.prod.previous
-            fi
-            if [ -f /opt/auth/docker-compose-auth-prod.yml ]; then
-              cp /opt/auth/docker-compose-auth-prod.yml /opt/auth/docker-compose-auth-prod.previous.yml
-            fi
-            cp "$DEPLOY_ENV_FILE" /opt/auth/.env.prod
-            cp docker-compose-auth-prod.yml /opt/auth/docker-compose-auth-prod.yml
-            printf '%s\n' "$IMAGE_REF" > /opt/auth/.last-deployed-image-ref
+    uses: devnogi/ci-workflows/.github/workflows/spring-prod.yml@2b4fbf8f7ab7403959f4641fe6d175b832ffe331
+    with:
+      service-profile: auth-mysql
+      deployment-target: prod2
+      service-name: auth
+      dockerfile: Dockerfile
+      compose-file: docker-compose-auth-prod.yml
+      health-timeout: '300'
+      platform: linux/amd64
+    secrets: inherit
