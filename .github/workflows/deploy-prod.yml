@@ -29,7 +29,7 @@ jobs:
   production:
     needs: workflow-contract
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-    uses: devnogi/ci-workflows/.github/workflows/spring-prod.yml@2b4fbf8f7ab7403959f4641fe6d175b832ffe331
+    uses: devnogi/ci-workflows/.github/workflows/spring-prod.yml@c5b33bfa84762986d47037f5ce3eca14a1c516ca
     with:
       service-profile: auth-mysql
       deployment-target: prod2
