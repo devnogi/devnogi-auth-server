@@ -14,10 +14,16 @@ services:
           memory: 750M
     restart: always
     logging:
-      driver: "json-file"
+      driver: "syslog"
       options:
-        max-size: "10m"
-        max-file: "3"
+        syslog-address: "unixgram:///dev/log"
+        syslog-format: "rfc5424micro"
+        tag: "memonogi-auth"
+        mode: "non-blocking"
+        max-buffer-size: "4m"
+        cache-disabled: "false"
+        cache-max-size: "20m"
+        cache-max-file: "5"
     networks:
       - infra_devnogi-network
 
