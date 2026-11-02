@@ -28,7 +28,7 @@ jobs:
 
   ci:
     needs: workflow-contract
-    uses: devnogi/ci-workflows/.github/workflows/spring-ci.yml@c5b33bfa84762986d47037f5ce3eca14a1c516ca
+    uses: devnogi/ci-workflows/.github/workflows/spring-ci.yml@698f7b25995156af3f2df7f17171e5c3f5e77d76
     with:
       service-profile: auth-mysql
       service-name: auth
