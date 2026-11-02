@@ -188,3 +188,14 @@ spring:
 springdoc:
   swagger-ui:
     enabled: false
+
+logging:
+  level:
+    root: INFO
+    until.the.eternity: INFO
+    org.springframework.security: WARN
+    org.springframework.kafka: WARN
+    org.apache.kafka: WARN
+    org.hibernate: WARN
+    org.springframework.data.redis: WARN
+    io.lettuce.core: WARN
