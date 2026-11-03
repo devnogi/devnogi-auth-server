@@ -42,5 +42,6 @@ test('callers agree on Auth inputs and health deployment contracts', () => {
     }
   }
   assert.match(read('docker-compose-auth-prod.yml'), /auth-server:\s*\n\s*image: \$\{IMAGE_REF:\?IMAGE_REF is required\}/);
+  assert.match(read('docker-compose-auth-prod.yml'), /ports:\s*\n\s*- "127\.0\.0\.1:\$\{SERVER_PORT\}:\$\{SERVER_PORT\}"/);
   assert.match(security, /requestMatchers\("\/actuator\/health"\)\s*\.permitAll\(\)/);
 });
