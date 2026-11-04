@@ -18,6 +18,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.Date;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -51,6 +52,9 @@ import until.the.eternity.das.oauth.service.OAuthExchangeService;
 import until.the.eternity.das.oauth.service.SocialAuthService;
 import until.the.eternity.das.role.entity.Role;
 import until.the.eternity.das.role.entity.enums.Name;
+import until.the.eternity.das.search.application.UserSearchService;
+import until.the.eternity.das.search.dto.UserSearchResponse;
+import until.the.eternity.das.search.presentation.UserSearchController;
 import until.the.eternity.das.token.application.TokenService;
 import until.the.eternity.das.user.application.UserService;
 import until.the.eternity.das.user.dto.response.UserInfoResponse;
@@ -63,6 +67,8 @@ import until.the.eternity.das.user.presentation.UserController;
         controllers = {
             AuthController.class,
             UserController.class,
+            UserSearchController.class,
+            EmailLoginContractTest.MetricsController.class,
             EmailLoginContractTest.HealthController.class
         },
         properties = {"jwt.cookie-domain=", "jwt.cookie-secure=false", "jwt.cookie-same-site=Lax"})
@@ -72,6 +78,7 @@ import until.the.eternity.das.user.presentation.UserController;
     CookieUtil.class,
     JwtUtil.class,
     EmailLoginContractTest.Configuration.class,
+    EmailLoginContractTest.MetricsController.class,
     EmailLoginContractTest.HealthController.class
 })
 class EmailLoginContractTest {
@@ -80,6 +87,14 @@ class EmailLoginContractTest {
         @GetMapping("/actuator/health")
         java.util.Map<String, String> health() {
             return java.util.Map.of("status", "UP");
+        }
+    }
+
+    @RestController
+    static class MetricsController {
+        @GetMapping({"/actuator/metrics", "/actuator/metrics/{name}"})
+        java.util.Map<String, String> metrics() {
+            return java.util.Map.of("status", "available");
         }
     }
 
@@ -96,6 +111,7 @@ class EmailLoginContractTest {
     @MockitoBean private SocialAuthService socialAuthService;
     @MockitoBean private OAuthExchangeService oauthExchangeService;
     @MockitoBean private UserService userService;
+    @MockitoBean private UserSearchService userSearchService;
     @MockitoBean private NicknameCandidateService nicknameCandidateService;
     @MockitoBean private UserRepository users;
     @MockitoBean private CustomOAuth2UserService oauthUsers;
@@ -335,8 +351,50 @@ class EmailLoginContractTest {
         verify(authService, never()).signUpAdmin(any());
     }
 
+    @Test
+    void anonymousUserSearchMatchesThePublicContract() throws Exception {
+        when(userSearchService.search("메모", 10))
+                .thenReturn(List.of(new UserSearchResponse("USER", 7L, "메모노기", "류트")));
+
+        MvcResult result =
+                mvc.perform(get("/api/user/search").param("query", "메모"))
+                        .andExpect(status().isOk())
+                        .andReturn();
+
+        assertResponse(result, "/api/user/search", "get");
+        assertThat(result.getResponse().getContentAsString())
+                .doesNotContain("email", "role", "lastLoginAt");
+    }
+
+    @Test
+    void metricsRequireAnAdminOrSuperAdminRole() throws Exception {
+        mvc.perform(get("/actuator/health")).andExpect(status().isOk());
+        mvc.perform(get("/actuator/metrics")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/actuator/metrics").cookie(accessCookie(Name.USER)))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/actuator/metrics").cookie(accessCookie(Name.ADMIN)))
+                .andExpect(status().isOk());
+        mvc.perform(
+                        get("/actuator/metrics/memonogi.search.cache.read.failures")
+                                .cookie(accessCookie(Name.SUPER_ADMIN)))
+                .andExpect(status().isOk());
+    }
+
     private Cookie accessCookie() {
-        return new Cookie("access_token", jwt.generateAccessToken(user));
+        return accessCookie(Name.USER);
+    }
+
+    private Cookie accessCookie(Name role) {
+        User tokenUser =
+                User.builder()
+                        .id(user.getId())
+                        .email(user.getEmail())
+                        .nickname(user.getNickname())
+                        .status(Status.ACTIVE)
+                        .role(Role.builder().name(role).build())
+                        .createdAt(user.getCreatedAt())
+                        .build();
+        return new Cookie("access_token", jwt.generateAccessToken(tokenUser));
     }
 
     private void assertLocalCookies(MvcResult result, boolean deleted) {

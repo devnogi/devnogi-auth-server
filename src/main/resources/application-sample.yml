@@ -13,7 +13,10 @@ management:
   endpoints:
     web:
       exposure:
-        include: [ "health" ]
+        include: [ "health", "metrics" ]
+  health:
+    redis:
+      enabled: ${MANAGEMENT_HEALTH_REDIS_ENABLED:false}
 
 spring:
   application:
@@ -26,6 +29,13 @@ spring:
     url: jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_SCHEMA}
     username: ${DB_USER}
     password: ${DB_PASSWORD}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:1s}
+      timeout: ${REDIS_TIMEOUT:1s}
   security:
     oauth2:
       client:
@@ -143,6 +153,11 @@ decorator:
       enable-logging: false
 
 app:
+  search:
+    cache-key: ${USER_SEARCH_CACHE_KEY:auth:total-search:user-snapshot:v1}
+    ttl: ${USER_SEARCH_CACHE_TTL:PT24H}
+    refresh-cron: ${USER_SEARCH_REFRESH_CRON:0 0 * * * *}
+    warmup-enabled: ${USER_SEARCH_WARMUP_ENABLED:true}
   oauth:
     redirect-uri: ${OAUTH_FRONTEND_CALLBACK_URL:https://www.memonogi.com/social-callback}
     code-validity-seconds: ${OAUTH_CODE_VALIDITY_SECONDS:300}

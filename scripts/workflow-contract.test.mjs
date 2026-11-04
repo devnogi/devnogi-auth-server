@@ -31,8 +31,8 @@ test('production caller only permits main push or manual dispatch', () => {
   assert.match(prod, /health-timeout: '300'/);
   assert.match(prod, /platform: linux\/amd64/);
   assert.match(prod, /secrets: inherit/);
-  assert.match(build, /^version = "1\.0\.4-SNAPSHOT"$/m);
-  assert.doesNotMatch(build, /spring-boot-starter-data-redis/);
+  assert.match(build, /^version = "1\.0\.5-SNAPSHOT"$/m);
+  assert.match(build, /spring-boot-starter-data-redis/);
 });
 
 test('callers agree on Auth inputs and health deployment contracts', () => {
@@ -45,4 +45,5 @@ test('callers agree on Auth inputs and health deployment contracts', () => {
   assert.match(read('docker-compose-auth-prod.yml'), /auth-server:\s*\n\s*image: \$\{IMAGE_REF:\?IMAGE_REF is required\}/);
   assert.match(read('docker-compose-auth-prod.yml'), /ports:\s*\n\s*- "127\.0\.0\.1:\$\{SERVER_PORT\}:\$\{SERVER_PORT\}"/);
   assert.match(security, /requestMatchers\("\/actuator\/health"\)\s*\.permitAll\(\)/);
+  assert.match(security, /requestMatchers\("\/actuator\/metrics", "\/actuator\/metrics\/\*\*"\)\s*\.hasAnyRole\("ADMIN", "SUPER_ADMIN"\)/);
 });
