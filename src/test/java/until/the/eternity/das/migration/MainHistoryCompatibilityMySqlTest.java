@@ -188,9 +188,11 @@ class MainHistoryCompatibilityMySqlTest {
         assertArrayEquals(
                 resource("/db/migration/V20261027000002__ensure_default_roles.sql"),
                 resource("/db/role-replay/V20261027000003__ensure_default_roles_replay.sql"));
+        // The isolated replay intentionally runs after newer production migrations.
         Flyway.configure()
                 .dataSource(appliedUrl, username, password)
                 .locations("classpath:db/migration", "classpath:db/role-replay")
+                .outOfOrder(true)
                 .load()
                 .migrate();
         assertEquals(roles(appliedDb), roles(freshDb), "Replaying the SQL must be idempotent");
