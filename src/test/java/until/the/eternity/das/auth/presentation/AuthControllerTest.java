@@ -193,7 +193,43 @@ class AuthControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(header().string("Cache-Control", "no-store"))
                 .andExpect(header().string("Referrer-Policy", "no-referrer"))
-                .andExpect(jsonPath("$.data.type").value("LOGIN_SUCCESS"));
+                .andExpect(jsonPath("$.data.type").value("LOGIN_SUCCESS"))
+                .andExpect(jsonPath("$.data.provider").doesNotExist())
+                .andExpect(jsonPath("$.data.email").doesNotExist())
+                .andExpect(jsonPath("$.data.signupProof").doesNotExist());
+
+        verify(oauthExchangeService).exchange("synthetic-code", "synthetic-binding");
+    }
+
+    @Test
+    void oauthExchangeReturnsOnlyVerifiedSignupContextForNewMember() throws Exception {
+        when(jwtConstant.getAccessTokenCookieName()).thenReturn("access_token");
+        when(oauthExchangeService.exchange("signup-code", "synthetic-binding"))
+                .thenReturn(
+                        new OAuthExchangeService.ExchangeResult(
+                                "SIGNUP_REQUIRED",
+                                "GOOGLE",
+                                "member@example.invalid",
+                                "synthetic-signup-proof"));
+
+        mockMvc.perform(
+                        post("/api/auth/oauth/exchange")
+                                .cookie(
+                                        new Cookie(
+                                                OAuthExchangeService.BINDING_COOKIE,
+                                                "synthetic-binding"))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"code\":\"signup-code\"}"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(header().string("Referrer-Policy", "no-referrer"))
+                .andExpect(jsonPath("$.data.type").value("SIGNUP_REQUIRED"))
+                .andExpect(jsonPath("$.data.provider").value("GOOGLE"))
+                .andExpect(jsonPath("$.data.email").value("member@example.invalid"))
+                .andExpect(jsonPath("$.data.signupProof").value("synthetic-signup-proof"))
+                .andExpect(jsonPath("$.data.providerUserId").doesNotExist());
+
+        verify(oauthExchangeService).exchange("signup-code", "synthetic-binding");
     }
 
     @Test
