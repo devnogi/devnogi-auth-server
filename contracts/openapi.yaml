@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Memonogi email login contract
-  version: 1.0.0
+  version: 1.1.0
   description: |
     Provider is devnogi-auth-server. Consumer is devnogi-react through devnogi-gateway-server.
     Gateway adds /das; the BFF maps login, refresh, logout to /api/auth/* and info to /api/auth/me.
@@ -36,6 +36,29 @@ x-oauth-callback:
     Expired exchange rows are removed in bounded batches after a one-hour recovery window;
     the default cleanup interval is 10 minutes. Raw codes, proofs and binding values are not stored.
 paths:
+  /api/user/search:
+    get:
+      operationId: searchUsers
+      security: []
+      description: |
+        Searches the hourly snapshot of up to 1,000 users ordered by last login time.
+        SUPER_ADMIN users are excluded. The response deliberately omits email, role and login time.
+      parameters:
+        - in: query
+          name: query
+          required: true
+          schema: {type: string, minLength: 1, maxLength: 50}
+        - in: query
+          name: limit
+          required: false
+          schema: {type: integer, minimum: 1, maximum: 10, default: 10}
+      responses:
+        '200':
+          description: Exact, prefix and partial nickname matches in that order.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/UserSearchSuccess'}
+        '400': {description: Blank/oversized query or a limit outside 1 through 10.}
   /api/auth/random-nickname/candidate:
     get:
       operationId: issueNicknameCandidate
@@ -343,6 +366,24 @@ components:
             success: {type: boolean, enum: [true]}
             code: {type: string, enum: [COMMON_SUCCESS]}
             data: {$ref: '#/components/schemas/UserInfo'}
+    UserSearchResult:
+      type: object
+      required: [type, userId, nickname]
+      properties:
+        type: {type: string, enum: [USER]}
+        userId: {type: integer, format: int64, description: Stable user identity for a future profile route.}
+        nickname: {type: string}
+        serverName: {type: string, nullable: true, description: Used to distinguish duplicate nicknames.}
+    UserSearchSuccess:
+      allOf:
+        - {$ref: '#/components/schemas/Envelope'}
+        - properties:
+            success: {type: boolean, enum: [true]}
+            code: {type: string, enum: [COMMON_SUCCESS]}
+            data:
+              type: array
+              maxItems: 10
+              items: {$ref: '#/components/schemas/UserSearchResult'}
     LogoutSuccess:
       allOf:
         - {$ref: '#/components/schemas/Envelope'}

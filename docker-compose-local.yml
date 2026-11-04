@@ -19,6 +19,8 @@ services:
       DB_SCHEMA: ${DB_SCHEMA:-auth}
       DB_USER: ${DB_USER:-devnogi}
       DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env.local}
+      REDIS_HOST: ${REDIS_HOST:-host.docker.internal}
+      REDIS_PORT: ${REDIS_PORT:-6379}
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-host.docker.internal:9102}
       KAFKA_TOPIC_USER_VERIFICATION_VERIFY: ${KAFKA_TOPIC_USER_VERIFICATION_VERIFY:-USER_VERIFICATION_VERIFY_EVENT}
       KAFKA_CONSUMER_GROUP_ID: ${KAFKA_CONSUMER_GROUP_ID:-devnogi-auth-user-verification-consumer-local}

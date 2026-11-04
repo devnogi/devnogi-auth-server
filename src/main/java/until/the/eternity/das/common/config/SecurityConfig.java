@@ -4,12 +4,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import until.the.eternity.das.common.exception.GlobalExceptionCode;
 import until.the.eternity.das.common.filter.UserAuthenticationFilter;
@@ -43,26 +45,43 @@ public class SecurityConfig {
 
         http.exceptionHandling(
                 exceptions ->
-                        exceptions.defaultAuthenticationEntryPointFor(
-                                (request, response, exception) -> {
-                                    GlobalExceptionCode error = GlobalExceptionCode.INVALID_TOKEN;
-                                    response.setStatus(error.getStatus().value());
-                                    response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-                                    response.setCharacterEncoding("UTF-8");
-                                    objectMapper.writeValue(
-                                            response.getWriter(),
-                                            CommonResponse.error(
-                                                    error.getCode(), error.getMessage()));
-                                },
-                                request ->
-                                        request.getRequestURI()
-                                                .substring(request.getContextPath().length())
-                                                .startsWith("/api/")));
+                        exceptions
+                                .defaultAuthenticationEntryPointFor(
+                                        (request, response, exception) -> {
+                                            GlobalExceptionCode error =
+                                                    GlobalExceptionCode.INVALID_TOKEN;
+                                            response.setStatus(error.getStatus().value());
+                                            response.setContentType(
+                                                    MediaType.APPLICATION_JSON_VALUE);
+                                            response.setCharacterEncoding("UTF-8");
+                                            objectMapper.writeValue(
+                                                    response.getWriter(),
+                                                    CommonResponse.error(
+                                                            error.getCode(), error.getMessage()));
+                                        },
+                                        request ->
+                                                request.getRequestURI()
+                                                        .substring(
+                                                                request.getContextPath().length())
+                                                        .startsWith("/api/"))
+                                .defaultAuthenticationEntryPointFor(
+                                        new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED),
+                                        request -> {
+                                            String path =
+                                                    request.getRequestURI()
+                                                            .substring(
+                                                                    request.getContextPath()
+                                                                            .length());
+                                            return path.equals("/actuator/metrics")
+                                                    || path.startsWith("/actuator/metrics/");
+                                        }));
 
         http.authorizeHttpRequests(
                 auth ->
                         auth.requestMatchers("/actuator/health")
                                 .permitAll()
+                                .requestMatchers("/actuator/metrics", "/actuator/metrics/**")
+                                .hasAnyRole("ADMIN", "SUPER_ADMIN")
                                 .requestMatchers(
                                         "/swagger",
                                         "/swagger-ui.html",
@@ -76,6 +95,8 @@ public class SecurityConfig {
                                 .requestMatchers("/api/auth/**")
                                 .permitAll()
                                 .requestMatchers("/api/user/verification/public/**")
+                                .permitAll()
+                                .requestMatchers("/api/user/search")
                                 .permitAll()
                                 .requestMatchers("/api/admin/")
                                 .hasAnyRole("ADMIN", "SUPER_ADMIN")

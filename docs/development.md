@@ -52,6 +52,12 @@ PR 검증은 `dev`와 `main` 대상 PR 및 수동 실행에서 고정 SHA의 공
 
 공동 루트 가이드로 devnogi-infra-prod의 mysql/kafka를 먼저 시작하면 memonogi-local 네트워크가 만들어진다. 기존 Compose 뒤에 -f docker-compose-shared.yml을 추가하면 애플리케이션이 공통 Kafka 내부 리스너(devnogi-local-kafka:29092)를 사용한다. auth는 공통 MySQL에도 연결한다. community/batch의 자체 DB 등은 유지되며 community의 별도 kafka는 선택하지 않는다. 명령: `docker compose --env-file .env.local -f docker-compose-local.yml -f docker-compose-shared.yml up --build auth-server`.
 
+## 통합 검색 Redis 모니터링
+
+사용자 통합 검색 캐시는 Redis가 없어도 DB 조회로 동작하므로 Redis health indicator는 기본적으로 비활성화한다. 캐시 장애를 숨기지 않도록 애플리케이션은 읽기 실패마다 `memonogi.search.cache.read.failures`, 쓰기 실패마다 `memonogi.search.cache.write.failures` Micrometer counter를 증가시키고 WARN 로그를 남긴다. Actuator `metrics` endpoint는 노출하지만 익명 및 일반 USER에는 공개하지 않으며 ADMIN 또는 SUPER_ADMIN 인증을 통과한 모니터링만 두 counter를 수집한다. 두 counter의 증가를 경보 조건으로 사용한다. 캐시 쓰기 실패 시 기존 Redis 키를 삭제하지 않으며, 다음 매시 갱신 또는 cache miss 재적재 때 복구를 시도한다.
+
+운영 컨테이너에는 `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`를 제공한다. prod2 공통 Redis를 사용할 때 내부 주소와 포트는 `redis:6389`다. 로컬 Redis가 없으면 API fallback 검증은 가능하지만 실제 TTL과 네트워크 복구는 Redis가 준비된 통합 환경에서 확인한다.
+
 ## 로컬 이메일 로그인
 
 샘플은 `DB_SCHEMA=auth`를 사용한다. 공통 infra의 로컬 bootstrap으로 auth 스키마와 로컬 앱 사용자 권한을 먼저 준비한다. 빈 auth DB는 기존 versioned migration을 순서대로 적용하고, 새 `V20261027000002__ensure_default_roles.sql`이 현재 스키마의 기본 역할을 점검한다. 이미 있는 volume에는 infra의 비파괴 bootstrap 절차를 사용하고 volume을 삭제하거나 기존 migration을 수정하지 않는다. 적용된 `auth.roles` migration checksum은 `912666893`이다. 과거 `devnogi.roles` 스크립트 checksum `-1922630474`가 기록된 DB는 새 migration 실행 전 검증에 실패하므로, 해당 DB의 실제 역할·참조 상태와 복구 절차를 별도로 검토하고 승인받기 전까지 적용을 중단한다. 운영 DB를 자동 repair하거나 검증을 끄지 않는다.
