@@ -197,5 +197,3 @@ logging:
     org.springframework.kafka: WARN
     org.apache.kafka: WARN
     org.hibernate: WARN
-    org.springframework.data.redis: WARN
-    io.lettuce.core: WARN
