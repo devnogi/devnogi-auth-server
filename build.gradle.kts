@@ -8,7 +8,7 @@ plugins {
 }
 
 group = "until.the.eternity"
-version = "1.0.3-SNAPSHOT"
+version = "1.0.4-SNAPSHOT"
 java.sourceCompatibility = JavaVersion.VERSION_21
 
 repositories {
@@ -47,9 +47,6 @@ dependencies {
 
     // Validation
     implementation("org.springframework.boot:spring-boot-starter-validation")
-
-    // Redis (캐싱 및 세션 관리용)
-    implementation("org.springframework.boot:spring-boot-starter-data-redis")
 
     // Lombok (Optional - 편리한 getter/setter)
     compileOnly("org.projectlombok:lombok:1.18.32")

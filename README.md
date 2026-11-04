@@ -54,7 +54,7 @@
 
 * **Backend**: Kotlin, Spring Boot 3.5.0, Spring Security, Spring Data JPA (Hibernate)
 * **Authentication**: JWT, OAuth2 Client (Google, Naver, Kakao)
-* **Database**: MySQL, Flyway (DB 마이그레이션), Redis
+* **Database**: MySQL, Flyway (DB 마이그레이션)
 * **Async**: Kafka (이벤트 발행)
 * **Storage**: AWS S3 (프로필 이미지 저장)
 * **API Docs**: SpringDoc (Swagger UI)

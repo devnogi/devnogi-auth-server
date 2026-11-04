@@ -31,7 +31,8 @@ test('production caller only permits main push or manual dispatch', () => {
   assert.match(prod, /health-timeout: '300'/);
   assert.match(prod, /platform: linux\/amd64/);
   assert.match(prod, /secrets: inherit/);
-  assert.match(build, /^version = "1\.0\.3-SNAPSHOT"$/m);
+  assert.match(build, /^version = "1\.0\.4-SNAPSHOT"$/m);
+  assert.doesNotMatch(build, /spring-boot-starter-data-redis/);
 });
 
 test('callers agree on Auth inputs and health deployment contracts', () => {
