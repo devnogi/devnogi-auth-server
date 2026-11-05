@@ -37,6 +37,7 @@ import until.the.eternity.das.role.entity.Role;
 import until.the.eternity.das.role.entity.RoleRepository;
 import until.the.eternity.das.role.entity.enums.Name;
 import until.the.eternity.das.token.application.TokenService;
+import until.the.eternity.das.user.application.GameProfileService;
 import until.the.eternity.das.user.entity.User;
 import until.the.eternity.das.user.entity.UserRepository;
 
@@ -56,6 +57,7 @@ class AuthServiceTest {
     @Mock private NicknameCandidateService nicknameCandidateService;
     @Mock private AccountLockRepository accountLockRepository;
     @Mock private LoginHistoryRepository loginHistoryRepository;
+    @Mock private GameProfileService gameProfileService;
 
     private SignUpRequest signUpRequest;
     private LoginRequest loginRequest;
@@ -124,6 +126,22 @@ class AuthServiceTest {
         assertEquals(user.getId(), response.id());
         verify(nicknameCandidateService)
                 .validateForChange(signUpRequest.nickname(), signUpRequest.nicknameTicket());
+        verify(gameProfileService).normalize(signUpRequest);
+        verify(gameProfileService).replace(user, null);
+    }
+
+    @Test
+    void invalidGameProfileStopsSignupBeforeExternalSideEffects() {
+        when(roleRepository.findByName(Name.USER)).thenReturn(Optional.of(userRole));
+        doThrow(new CustomException(GlobalExceptionCode.INVALID_GAME_PROFILE_FORMAT))
+                .when(gameProfileService)
+                .normalize(signUpRequest);
+
+        CustomException exception =
+                assertThrows(CustomException.class, () -> authService.signUpUser(signUpRequest));
+
+        assertEquals(GlobalExceptionCode.INVALID_GAME_PROFILE_FORMAT, exception.getCode());
+        verifyNoInteractions(s3Service, kafkaProducerService, authConverter);
     }
 
     @Test

@@ -26,6 +26,8 @@ import until.the.eternity.das.role.entity.Role;
 import until.the.eternity.das.role.entity.RoleRepository;
 import until.the.eternity.das.role.entity.enums.Name;
 import until.the.eternity.das.token.application.TokenService;
+import until.the.eternity.das.user.application.GameProfileService;
+import until.the.eternity.das.user.application.GameProfileValues;
 import until.the.eternity.das.user.dto.response.UserInfoUpdateEvent;
 import until.the.eternity.das.user.entity.User;
 import until.the.eternity.das.user.entity.UserRepository;
@@ -46,6 +48,7 @@ public class AuthService {
     private final S3Service s3Service;
     private final KafkaProducerService kafkaProducerService;
     private final NicknameCandidateService nicknameCandidateService;
+    private final GameProfileService gameProfileService;
 
     @Transactional
     public void logout(Long userId) {
@@ -178,6 +181,7 @@ public class AuthService {
     }
 
     private SignUpResponse signUp(SignUpRequest request, Role role) {
+        GameProfileValues gameProfile = gameProfileService.normalize(request);
         isValidEmailFormat(request.email());
         if (userRepository.existsByEmail(request.email())) {
             throw new CustomException(GlobalExceptionCode.EMAIL_ALREADY_EXISTS);
@@ -209,6 +213,7 @@ public class AuthService {
         } catch (DataIntegrityViolationException e) {
             throw new CustomException(GlobalExceptionCode.NICKNAME_ALREADY_EXISTS);
         }
+        gameProfileService.replace(user, gameProfile);
 
         try {
             UserInfoUpdateEvent kafKaEvent = UserInfoUpdateEvent.of(user);

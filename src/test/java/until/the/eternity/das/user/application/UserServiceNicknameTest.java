@@ -23,6 +23,7 @@ import until.the.eternity.das.common.exception.GlobalExceptionCode;
 import until.the.eternity.das.user.dto.request.UserInfoUpdateRequest;
 import until.the.eternity.das.user.entity.User;
 import until.the.eternity.das.user.entity.UserRepository;
+import until.the.eternity.das.verification.entity.UserVerificationRepository;
 
 @ExtendWith(MockitoExtension.class)
 class UserServiceNicknameTest {
@@ -31,6 +32,8 @@ class UserServiceNicknameTest {
     @Mock private KafkaProducerService events;
     @Mock private NicknameCandidateService candidates;
     @Mock private EntityManager entityManager;
+    @Mock private GameProfileService gameProfiles;
+    @Mock private UserVerificationRepository verifications;
     @InjectMocks private UserService service;
 
     @Test

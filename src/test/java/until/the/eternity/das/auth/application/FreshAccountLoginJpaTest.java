@@ -29,7 +29,12 @@ import until.the.eternity.das.role.entity.enums.Name;
 import until.the.eternity.das.role.infrastructure.RoleRepositoryImpl;
 import until.the.eternity.das.token.application.TokenService;
 import until.the.eternity.das.token.entity.RefreshTokenRepository;
+import until.the.eternity.das.user.application.GameProfileService;
+import until.the.eternity.das.user.entity.UserGameProfileRepository;
 import until.the.eternity.das.user.entity.UserRepository;
+import until.the.eternity.das.user.entity.enums.Arcana;
+import until.the.eternity.das.user.entity.enums.Mbti;
+import until.the.eternity.das.user.entity.enums.Race;
 
 @DataJpaTest(
         properties = {
@@ -43,6 +48,7 @@ import until.the.eternity.das.user.entity.UserRepository;
     TokenService.class,
     JwtUtil.class,
     NicknameCandidateService.class,
+    GameProfileService.class,
     RoleRepositoryImpl.class,
     FreshAccountLoginJpaTest.Configuration.class
 })
@@ -59,6 +65,7 @@ class FreshAccountLoginJpaTest {
 
     @Autowired private AuthService authService;
     @Autowired private UserRepository users;
+    @Autowired private UserGameProfileRepository gameProfiles;
     @Autowired private AccountLockRepository accountLocks;
     @Autowired private LoginHistoryRepository loginHistory;
     @Autowired private RefreshTokenRepository refreshTokens;
@@ -138,5 +145,45 @@ class FreshAccountLoginJpaTest {
 
         assertEquals(GlobalExceptionCode.NICKNAME_TICKET_REQUIRED, error.getCode());
         assertThat(users.findByEmail("old-page@example.test")).isEmpty();
+    }
+
+    @Test
+    void optionalGameProfileIsStoredWithTheNewAccount() {
+        entityManager.persist(Role.builder().name(Name.USER).build());
+        String nickname = "강인한 인간 XYZ12";
+        String ticket = nicknameCandidates.issue(nickname).nicknameTicket();
+
+        Long userId =
+                authService
+                        .signUpUser(
+                                new SignUpRequest(
+                                        "profile@example.test",
+                                        "LocalPass123!",
+                                        nickname,
+                                        ticket,
+                                        null,
+                                        42,
+                                        "길드",
+                                        "HUMAN",
+                                        "ELEMENTAL_KNIGHT",
+                                        "255.128.0",
+                                        "0.1.2",
+                                        "INFP",
+                                        "소개"))
+                        .id();
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(gameProfiles.findById(userId))
+                .hasValueSatisfying(
+                        profile -> {
+                            assertThat(profile.getMainChannel()).isEqualTo(42);
+                            assertThat(profile.getGuildName()).isEqualTo("길드");
+                            assertThat(profile.getRace()).isEqualTo(Race.HUMAN);
+                            assertThat(profile.getArcana()).isEqualTo(Arcana.ELEMENTAL_KNIGHT);
+                            assertThat(profile.getMbti()).isEqualTo(Mbti.INFP);
+                            assertThat(profile.getPreferredColor1()).isEqualTo("255.128.0");
+                            assertThat(profile.getPreferredColor2()).isEqualTo("0.1.2");
+                        });
     }
 }

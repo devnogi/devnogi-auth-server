@@ -6,6 +6,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import org.springframework.web.multipart.MultipartFile;
+import until.the.eternity.das.user.dto.request.GameProfileInput;
 
 public record SignUpRequest(
         @Schema(
@@ -25,7 +26,38 @@ public record SignUpRequest(
                 @NotBlank(message = "닉네임을 입력해주세요.")
                 String nickname,
         @Schema(description = "랜덤 닉네임 후보 발급 티켓") String nicknameTicket,
-        @Schema(description = "프로필 이미지 파일") MultipartFile file) {
+        @Schema(description = "프로필 이미지 파일") MultipartFile file,
+        Integer mainChannel,
+        String guildName,
+        String race,
+        String arcana,
+        String preferredColor1,
+        String preferredColor2,
+        String mbti,
+        String bio)
+        implements GameProfileInput {
+
+    public SignUpRequest(
+            String email,
+            String password,
+            String nickname,
+            String nicknameTicket,
+            MultipartFile file) {
+        this(
+                email,
+                password,
+                nickname,
+                nicknameTicket,
+                file,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
+    }
 
     public SignUpRequest(String email, String password, String nickname, MultipartFile file) {
         this(email, password, nickname, null, file);

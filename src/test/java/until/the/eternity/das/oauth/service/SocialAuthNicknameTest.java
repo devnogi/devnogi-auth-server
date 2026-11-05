@@ -23,6 +23,7 @@ import until.the.eternity.das.oauth.dto.OauthUserDTO;
 import until.the.eternity.das.oauth.entity.OauthUserRepository;
 import until.the.eternity.das.role.entity.RoleRepository;
 import until.the.eternity.das.token.application.TokenService;
+import until.the.eternity.das.user.application.GameProfileService;
 import until.the.eternity.das.user.entity.UserRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -38,6 +39,7 @@ class SocialAuthNicknameTest {
     @Mock private NicknameCandidateService candidates;
     @Mock private OAuthExchangeService exchange;
     @InjectMocks private SocialAuthService service;
+    @Mock private GameProfileService gameProfileService;
 
     @Test
     void socialSignupRejectsManualNicknameBeforeDatabaseOrKafka() {

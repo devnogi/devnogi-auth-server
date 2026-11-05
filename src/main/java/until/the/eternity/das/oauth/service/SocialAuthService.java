@@ -22,6 +22,8 @@ import until.the.eternity.das.role.entity.Role;
 import until.the.eternity.das.role.entity.RoleRepository;
 import until.the.eternity.das.role.entity.enums.Name;
 import until.the.eternity.das.token.application.TokenService;
+import until.the.eternity.das.user.application.GameProfileService;
+import until.the.eternity.das.user.application.GameProfileValues;
 import until.the.eternity.das.user.dto.response.UserInfoUpdateEvent;
 import until.the.eternity.das.user.entity.User;
 import until.the.eternity.das.user.entity.UserRepository;
@@ -41,6 +43,7 @@ public class SocialAuthService {
     private final KafkaProducerService kafkaProducerService;
     private final NicknameCandidateService nicknameCandidateService;
     private final OAuthExchangeService exchangeService;
+    private final GameProfileService gameProfileService;
 
     @Transactional
     public SignUpResponse completeSocialSignup(SocialSignUpRequest request, String binding) {
@@ -54,6 +57,7 @@ public class SocialAuthService {
                 || (request.email() != null && !request.email().equalsIgnoreCase(dto.getEmail()))) {
             throw new CustomException(GlobalExceptionCode.OAUTH_SIGNUP_PROOF_INVALID);
         }
+        GameProfileValues gameProfile = gameProfileService.normalize(request);
         nicknameCandidateService.validateForChange(request.nickname(), request.nicknameTicket());
         if (userRepository.existsByEmail(dto.getEmail())) {
             throw new CustomException(GlobalExceptionCode.EMAIL_ALREADY_EXISTS);
@@ -85,6 +89,7 @@ public class SocialAuthService {
         } catch (DataIntegrityViolationException e) {
             throw new CustomException(GlobalExceptionCode.NICKNAME_ALREADY_EXISTS);
         }
+        gameProfileService.replace(user, gameProfile);
 
         OauthUser oauthUser =
                 OauthUser.builder()
