@@ -11,6 +11,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import until.the.eternity.das.user.application.GameProfileValues;
 import until.the.eternity.das.user.entity.enums.Arcana;
 import until.the.eternity.das.user.entity.enums.Mbti;
@@ -34,10 +36,12 @@ public class UserGameProfile {
     private String guildName;
 
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(length = 20)
     private Race race;
 
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(length = 32)
     private Arcana arcana;
 
@@ -48,6 +52,7 @@ public class UserGameProfile {
     private String preferredColor2;
 
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(length = 4)
     private Mbti mbti;
 
