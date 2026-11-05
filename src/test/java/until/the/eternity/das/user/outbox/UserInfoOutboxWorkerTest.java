@@ -68,6 +68,21 @@ class UserInfoOutboxWorkerTest {
     }
 
     @Test
+    void asynchronousFailureSchedulingDatabaseErrorIsObservableAndKeepsLease(
+            CapturedOutput output) {
+        ClaimedUserInfoUpdate claim = claim(3L, 2);
+        when(producer.sendUserInfoUpdateEvent("42", claim.event()))
+                .thenReturn(CompletableFuture.failedFuture(new IllegalStateException("kafka")));
+        doThrow(new IllegalArgumentException("synthetic database failure"))
+                .when(dispatch)
+                .markFailed(claim, Duration.ofSeconds(20));
+
+        worker.publish(claim);
+
+        assertRetrySchedulingFailureIsSafeAndObservable(output);
+    }
+
+    @Test
     void acknowledgementDatabaseFailureIsObservableAndKeepsLease(CapturedOutput output) {
         ClaimedUserInfoUpdate claim = claim(3L, 0);
         when(producer.sendUserInfoUpdateEvent("42", claim.event()))
@@ -104,8 +119,33 @@ class UserInfoOutboxWorkerTest {
     }
 
     @Test
+    void synchronousFailureSchedulingDatabaseErrorIsObservableAndKeepsLease(CapturedOutput output) {
+        ClaimedUserInfoUpdate claim = claim(3L, 0);
+        doThrow(new IllegalStateException("kafka"))
+                .when(producer)
+                .sendUserInfoUpdateEvent("42", claim.event());
+        doThrow(new IllegalArgumentException("synthetic database failure"))
+                .when(dispatch)
+                .markFailed(claim, Duration.ofSeconds(5));
+
+        worker.publish(claim);
+
+        assertRetrySchedulingFailureIsSafeAndObservable(output);
+    }
+
+    @Test
     void backoffIsBounded() {
         assertEquals(Duration.ofMinutes(10), worker.retryBackoff(20));
+    }
+
+    private void assertRetrySchedulingFailureIsSafeAndObservable(CapturedOutput output) {
+        assertEquals(
+                1.0, metrics.counter("memonogi.user.info.outbox.retry.scheduling.failure").count());
+        assertEquals(0.0, metrics.counter("memonogi.user.info.outbox.publish.failure").count());
+        org.assertj.core.api.Assertions.assertThat(output)
+                .contains("retry scheduling failed; the claim lease will be retried")
+                .contains("userId=42, revision=3, exceptionType=IllegalArgumentException")
+                .doesNotContain("nickname", "synthetic database failure", "kafka");
     }
 
     private ClaimedUserInfoUpdate claim(long revision, int attempt) {

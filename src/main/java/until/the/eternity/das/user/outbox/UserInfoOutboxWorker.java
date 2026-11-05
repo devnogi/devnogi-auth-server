@@ -69,14 +69,18 @@ public class UserInfoOutboxWorker {
 
     private void recordFailure(ClaimedUserInfoUpdate claim, Throwable failure) {
         Duration backoff = retryBackoff(claim.attemptCount());
-        if (dispatch.markFailed(claim, backoff)) {
-            metrics.counter("memonogi.user.info.outbox.publish.failure").increment();
-            log.warn(
-                    "User summary publication failed. userId={}, revision={}, retryInSeconds={}, exceptionType={}",
-                    claim.userId(),
-                    claim.revision(),
-                    backoff.toSeconds(),
-                    failure.getClass().getSimpleName());
+        try {
+            if (dispatch.markFailed(claim, backoff)) {
+                metrics.counter("memonogi.user.info.outbox.publish.failure").increment();
+                log.warn(
+                        "User summary publication failed. userId={}, revision={}, retryInSeconds={}, exceptionType={}",
+                        claim.userId(),
+                        claim.revision(),
+                        backoff.toSeconds(),
+                        failure.getClass().getSimpleName());
+            }
+        } catch (RuntimeException retrySchedulingFailure) {
+            recordRetrySchedulingFailure(claim, retrySchedulingFailure);
         }
     }
 
@@ -85,6 +89,16 @@ public class UserInfoOutboxWorker {
         metrics.counter("memonogi.user.info.outbox.publish.acknowledgement.failure").increment();
         log.error(
                 "User summary publication acknowledgement failed; the claim lease will be retried. userId={}, revision={}, exceptionType={}",
+                claim.userId(),
+                claim.revision(),
+                failure.getClass().getSimpleName());
+    }
+
+    private void recordRetrySchedulingFailure(
+            ClaimedUserInfoUpdate claim, RuntimeException failure) {
+        metrics.counter("memonogi.user.info.outbox.retry.scheduling.failure").increment();
+        log.error(
+                "User summary retry scheduling failed; the claim lease will be retried. userId={}, revision={}, exceptionType={}",
                 claim.userId(),
                 claim.revision(),
                 failure.getClass().getSimpleName());
