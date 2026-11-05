@@ -1,6 +1,6 @@
 CREATE TABLE user_game_profile (
     user_id BIGINT PRIMARY KEY COMMENT '회원 ID',
-    main_channel TINYINT UNSIGNED NULL COMMENT '주 채널 (1~42)',
+    main_channel INT NULL COMMENT '주 채널 (1~42)',
     guild_name VARCHAR(30) NULL COMMENT '길드명',
     race VARCHAR(20) NULL COMMENT '종족 코드',
     arcana VARCHAR(32) NULL COMMENT '아르카나 코드',
