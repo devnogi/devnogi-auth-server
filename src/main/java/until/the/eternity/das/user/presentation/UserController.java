@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.*;
 import until.the.eternity.das.common.response.CommonResponse;
 import until.the.eternity.das.user.application.UserService;
 import until.the.eternity.das.user.dto.request.UserInfoUpdateRequest;
+import until.the.eternity.das.user.dto.response.PublicUserProfileResponse;
 import until.the.eternity.das.user.dto.response.UserInfoResponse;
 
 @RestController
@@ -61,6 +62,16 @@ public class UserController {
     public ResponseEntity<CommonResponse<UserInfoResponse>> getInfo(
             @AuthenticationPrincipal Long id) {
         return ResponseEntity.ok(CommonResponse.success(userService.getUserInfo(id)));
+    }
+
+    @GetMapping("/public/{userId}/profile")
+    @Operation(summary = "공개 사용자 프로필 조회 API")
+    @ApiResponse(
+            responseCode = "200",
+            content = @Content(schema = @Schema(implementation = PublicUserProfileResponse.class)))
+    public ResponseEntity<CommonResponse<PublicUserProfileResponse>> getPublicProfile(
+            @PathVariable Long userId) {
+        return ResponseEntity.ok(CommonResponse.success(userService.getPublicProfile(userId)));
     }
 
     /**

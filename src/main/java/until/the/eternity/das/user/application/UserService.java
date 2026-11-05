@@ -16,6 +16,7 @@ import until.the.eternity.das.common.application.S3Service;
 import until.the.eternity.das.common.exception.CustomException;
 import until.the.eternity.das.common.exception.GlobalExceptionCode;
 import until.the.eternity.das.user.dto.request.UserInfoUpdateRequest;
+import until.the.eternity.das.user.dto.response.PublicUserProfileResponse;
 import until.the.eternity.das.user.dto.response.UserInfoResponse;
 import until.the.eternity.das.user.dto.response.UserInfoUpdateEvent;
 import until.the.eternity.das.user.entity.User;
@@ -23,6 +24,7 @@ import until.the.eternity.das.user.entity.UserRepository;
 import until.the.eternity.das.user.entity.enums.NicknameAdjective;
 import until.the.eternity.das.user.entity.enums.NicknameWord;
 import until.the.eternity.das.user.entity.enums.Status;
+import until.the.eternity.das.verification.entity.UserVerificationRepository;
 
 @Service
 @RequiredArgsConstructor
@@ -39,10 +41,13 @@ public class UserService {
     private final KafkaProducerService kafkaProducerService;
     private final NicknameCandidateService nicknameCandidateService;
     private final EntityManager entityManager;
+    private final GameProfileService gameProfileService;
+    private final UserVerificationRepository userVerificationRepository;
 
     @Transactional
     @ActiveUserRequired
     public Boolean updateUserInfo(UserInfoUpdateRequest request, Long userId) {
+        GameProfileValues gameProfile = gameProfileService.normalize(request);
         User user =
                 userRepository
                         .findById(userId)
@@ -78,6 +83,7 @@ public class UserService {
         } catch (DataIntegrityViolationException e) {
             throw new CustomException(GlobalExceptionCode.NICKNAME_ALREADY_EXISTS);
         }
+        gameProfileService.replace(user, gameProfile);
 
         try {
             UserInfoUpdateEvent kafKaEvent = UserInfoUpdateEvent.of(user);
@@ -99,7 +105,25 @@ public class UserService {
                         .orElseThrow(
                                 () -> new CustomException(GlobalExceptionCode.USER_NOT_EXISTS));
 
-        return UserInfoResponse.of(user);
+        return UserInfoResponse.of(user, gameProfileService.findByUserId(userId).orElse(null));
+    }
+
+    @Transactional
+    public PublicUserProfileResponse getPublicProfile(Long userId) {
+        User user =
+                userRepository
+                        .findByIdAndStatus(userId, Status.ACTIVE)
+                        .orElseThrow(
+                                () ->
+                                        new CustomException(
+                                                GlobalExceptionCode.PUBLIC_USER_PROFILE_NOT_FOUND));
+        int verificationCount =
+                userVerificationRepository
+                        .findByUserId(userId)
+                        .map(verification -> verification.getVerificationCount())
+                        .orElse(0);
+        return PublicUserProfileResponse.of(
+                user, gameProfileService.findByUserId(userId).orElse(null), verificationCount);
     }
 
     @Transactional

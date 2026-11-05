@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -97,6 +98,9 @@ public class SecurityConfig {
                                 .requestMatchers("/api/user/verification/public/**")
                                 .permitAll()
                                 .requestMatchers("/api/user/search")
+                                .permitAll()
+                                .requestMatchers(
+                                        HttpMethod.GET, "/api/user/public/{userId}/profile")
                                 .permitAll()
                                 .requestMatchers("/api/admin/")
                                 .hasAnyRole("ADMIN", "SUPER_ADMIN")

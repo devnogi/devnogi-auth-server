@@ -205,6 +205,26 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /api/user/public/{userId}/profile:
+    get:
+      operationId: publicUserProfile
+      security: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: {type: integer, format: int64}
+      responses:
+        '200':
+          description: Active user's public profile. Missing optional profile values are null and preferredColors is empty.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PublicUserProfileSuccess'}
+        '404':
+          description: PUBLIC_USER_PROFILE_NOT_FOUND for missing or inactive users.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
   /api/auth/refresh:
     post:
       operationId: refreshSession
@@ -278,6 +298,14 @@ components:
         nickname: {type: string, description: Must match the ticket claim.}
         nicknameTicket: {type: string, description: Required while issued-candidate enforcement is enabled.}
         file: {type: string, format: binary}
+        mainChannel: {type: integer, minimum: 1, maximum: 42, nullable: true}
+        guildName: {type: string, maxLength: 30, nullable: true}
+        race: {$ref: '#/components/schemas/Race'}
+        arcana: {$ref: '#/components/schemas/Arcana'}
+        preferredColor1: {$ref: '#/components/schemas/PreferredColor'}
+        preferredColor2: {$ref: '#/components/schemas/PreferredColor'}
+        mbti: {$ref: '#/components/schemas/Mbti'}
+        bio: {type: string, maxLength: 50, nullable: true}
     SocialSignupRequest:
       type: object
       required: [signupProof, nickname, nicknameTicket]
@@ -289,6 +317,14 @@ components:
         nickname: {type: string, description: Must match the ticket claim.}
         nicknameTicket: {type: string}
         file: {type: string, format: binary}
+        mainChannel: {type: integer, minimum: 1, maximum: 42, nullable: true}
+        guildName: {type: string, maxLength: 30, nullable: true}
+        race: {$ref: '#/components/schemas/Race'}
+        arcana: {$ref: '#/components/schemas/Arcana'}
+        preferredColor1: {$ref: '#/components/schemas/PreferredColor'}
+        preferredColor2: {$ref: '#/components/schemas/PreferredColor'}
+        mbti: {$ref: '#/components/schemas/Mbti'}
+        bio: {type: string, maxLength: 50, nullable: true}
     OAuthExchangeRequest:
       type: object
       required: [code]
@@ -315,6 +351,31 @@ components:
         nickname: {type: string, description: Omit or leave unchanged for image-only update.}
         nicknameTicket: {type: string, description: Required only for an unverified user's changed nickname.}
         file: {type: string, format: binary}
+        mainChannel: {type: integer, minimum: 1, maximum: 42, nullable: true}
+        guildName: {type: string, maxLength: 30, nullable: true}
+        race: {$ref: '#/components/schemas/Race'}
+        arcana: {$ref: '#/components/schemas/Arcana'}
+        preferredColor1: {$ref: '#/components/schemas/PreferredColor'}
+        preferredColor2: {$ref: '#/components/schemas/PreferredColor'}
+        mbti: {$ref: '#/components/schemas/Mbti'}
+        bio: {type: string, maxLength: 50, nullable: true}
+    Race:
+      type: string
+      nullable: true
+      enum: [HUMAN, GIANT, ELF, UNDECIDED, null]
+    Arcana:
+      type: string
+      nullable: true
+      enum: [ELEMENTAL_KNIGHT, SAINT_BARD, DARK_MAGE, ALCHEMIC_STINGER, SACRED_GUARD, BLAST_LANCER, VARIABLE_GUNNER, FORBIDDEN_ALCHEMIST, MELODIC_PUPPETEER, FURY_FIGHTER, null]
+    Mbti:
+      type: string
+      nullable: true
+      enum: [ISTJ, ISFJ, INFJ, INTJ, ISTP, ISFP, INFP, INTP, ESTP, ESFP, ENFP, ENTP, ESTJ, ESFJ, ENFJ, ENTJ, null]
+    PreferredColor:
+      type: string
+      nullable: true
+      pattern: '^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})$'
+      description: Normalized decimal RGB components, each from 0 through 255.
     LoginRequest:
       type: object
       required: [email, password]
@@ -341,7 +402,7 @@ components:
         role: {type: string, enum: [USER, ADMIN, SUPER_ADMIN]}
     UserInfo:
       type: object
-      required: [userId, email, nickname, profileImageUrl, serverName, role, verified, createdAt, lastLoginAt]
+      required: [userId, email, nickname, profileImageUrl, serverName, role, verified, createdAt, lastLoginAt, mainChannel, guildName, race, arcana, preferredColors, mbti, bio]
       properties:
         userId: {type: integer, format: int64}
         email: {type: string, format: email}
@@ -352,6 +413,36 @@ components:
         verified: {type: boolean, description: Game-account verification state.}
         createdAt: {type: string, description: Existing local datetime serialization (no timezone suffix).}
         lastLoginAt: {type: string, nullable: true, description: Existing local datetime serialization.}
+        mainChannel: {type: integer, minimum: 1, maximum: 42, nullable: true}
+        guildName: {type: string, maxLength: 30, nullable: true}
+        race: {$ref: '#/components/schemas/Race'}
+        arcana: {$ref: '#/components/schemas/Arcana'}
+        preferredColors:
+          type: array
+          maxItems: 2
+          items: {type: string}
+        mbti: {$ref: '#/components/schemas/Mbti'}
+        bio: {type: string, maxLength: 50, nullable: true}
+    PublicUserProfile:
+      type: object
+      required: [userId, nickname, profileImageUrl, serverName, verified, verificationCount, mainChannel, guildName, race, arcana, preferredColors, mbti, bio]
+      properties:
+        userId: {type: integer, format: int64}
+        nickname: {type: string}
+        profileImageUrl: {type: string, nullable: true}
+        serverName: {type: string, nullable: true}
+        verified: {type: boolean}
+        verificationCount: {type: integer, minimum: 0}
+        mainChannel: {type: integer, minimum: 1, maximum: 42, nullable: true}
+        guildName: {type: string, maxLength: 30, nullable: true}
+        race: {$ref: '#/components/schemas/Race'}
+        arcana: {$ref: '#/components/schemas/Arcana'}
+        preferredColors:
+          type: array
+          maxItems: 2
+          items: {type: string}
+        mbti: {$ref: '#/components/schemas/Mbti'}
+        bio: {type: string, maxLength: 50, nullable: true}
     LoginSuccess:
       allOf:
         - {$ref: '#/components/schemas/Envelope'}
@@ -366,6 +457,13 @@ components:
             success: {type: boolean, enum: [true]}
             code: {type: string, enum: [COMMON_SUCCESS]}
             data: {$ref: '#/components/schemas/UserInfo'}
+    PublicUserProfileSuccess:
+      allOf:
+        - {$ref: '#/components/schemas/Envelope'}
+        - properties:
+            success: {type: boolean, enum: [true]}
+            code: {type: string, enum: [COMMON_SUCCESS]}
+            data: {$ref: '#/components/schemas/PublicUserProfile'}
     UserSearchResult:
       type: object
       required: [type, userId, nickname]

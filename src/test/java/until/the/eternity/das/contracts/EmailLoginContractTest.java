@@ -57,6 +57,7 @@ import until.the.eternity.das.search.dto.UserSearchResponse;
 import until.the.eternity.das.search.presentation.UserSearchController;
 import until.the.eternity.das.token.application.TokenService;
 import until.the.eternity.das.user.application.UserService;
+import until.the.eternity.das.user.dto.response.PublicUserProfileResponse;
 import until.the.eternity.das.user.dto.response.UserInfoResponse;
 import until.the.eternity.das.user.entity.User;
 import until.the.eternity.das.user.entity.UserRepository;
@@ -364,6 +365,35 @@ class EmailLoginContractTest {
         assertResponse(result, "/api/user/search", "get");
         assertThat(result.getResponse().getContentAsString())
                 .doesNotContain("email", "role", "lastLoginAt");
+    }
+
+    @Test
+    void anonymousPublicProfileMatchesTheSafeContract() throws Exception {
+        when(userService.getPublicProfile(7L))
+                .thenReturn(
+                        new PublicUserProfileResponse(
+                                7L,
+                                "메모노기",
+                                null,
+                                "류트",
+                                true,
+                                3,
+                                1,
+                                "길드",
+                                "HUMAN",
+                                "ELEMENTAL_KNIGHT",
+                                List.of("255.128.0"),
+                                "INFP",
+                                "소개"));
+
+        MvcResult result =
+                mvc.perform(get("/api/user/public/7/profile"))
+                        .andExpect(status().isOk())
+                        .andReturn();
+
+        assertResponse(result, "/api/user/public/{userId}/profile", "get");
+        assertThat(result.getResponse().getContentAsString())
+                .doesNotContain("email", "role", "createdAt", "lastLoginAt");
     }
 
     @Test

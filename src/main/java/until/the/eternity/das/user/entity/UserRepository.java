@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import until.the.eternity.das.user.entity.enums.Status;
 
 public interface UserRepository extends JpaRepository<User, Long> {
 
@@ -25,6 +26,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByEmailForUpdate(@Param("email") String email);
 
     Optional<User> findById(Long id);
+
+    Optional<User> findByIdAndStatus(Long id, Status status);
 
     @Query(
             value =
