@@ -199,15 +199,11 @@ public class UserVerificationService {
                         userVerificationRepository
                                 .findProfileOwnerId(event.serverName(), event.characterName())
                                 .orElse(null);
-                UserVerificationAttemptService.AttemptState state =
-                        new UserVerificationAttemptService.AttemptState();
                 try {
-                    verificationAttemptService.execute(event, value, claimantId, ownerId, state);
+                    verificationAttemptService.execute(event, value, claimantId, ownerId);
                     return;
                 } catch (RuntimeException e) {
-                    if (state.publicationStarted
-                            || state.methodCompleted
-                            || !isRetryableVerificationFailure(e)) throw e;
+                    if (!isRetryableVerificationFailure(e)) throw e;
                     if (attempt == 2)
                         throw new CustomException(GlobalExceptionCode.USER_VERIFICATION_INVALID);
                 }

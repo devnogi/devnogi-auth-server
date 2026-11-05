@@ -35,6 +35,7 @@ import until.the.eternity.das.user.entity.UserRepository;
 import until.the.eternity.das.user.entity.enums.Arcana;
 import until.the.eternity.das.user.entity.enums.Mbti;
 import until.the.eternity.das.user.entity.enums.Race;
+import until.the.eternity.das.user.outbox.UserInfoOutboxService;
 
 @DataJpaTest(
         properties = {
@@ -74,6 +75,7 @@ class FreshAccountLoginJpaTest {
     @Autowired private NicknameCandidateService nicknameCandidates;
     @MockitoBean private S3Service s3Service;
     @MockitoBean private KafkaProducerService kafkaProducerService;
+    @MockitoBean private UserInfoOutboxService userInfoOutboxService;
 
     @Test
     void firstLoginCreatesAccountLockAndPersistsLoginStateWithoutSeededLock() {

@@ -12,10 +12,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
-import until.the.eternity.das.common.application.KafkaProducerService;
 import until.the.eternity.das.user.application.UserService;
-import until.the.eternity.das.user.dto.response.UserInfoUpdateEvent;
 import until.the.eternity.das.user.entity.User;
+import until.the.eternity.das.user.outbox.UserInfoOutboxService;
 import until.the.eternity.das.verification.entity.UserVerification;
 import until.the.eternity.das.verification.entity.UserVerificationHistory;
 import until.the.eternity.das.verification.entity.UserVerificationHistoryRepository;
@@ -25,7 +24,7 @@ import until.the.eternity.das.verification.entity.UserVerificationTokenRepositor
 import until.the.eternity.das.verification.entity.enums.VerificationFailureReason;
 import until.the.eternity.das.verification.kafka.UserVerificationVerifyMessage;
 
-/** One independent transaction; caller may retry only before publication begins. */
+/** One independent transaction containing both verification changes and outbox enqueue. */
 @Service
 @RequiredArgsConstructor
 public class UserVerificationAttemptService {
@@ -35,12 +34,7 @@ public class UserVerificationAttemptService {
     private final UserVerificationRepository verifications;
     private final UserVerificationHistoryRepository histories;
     private final UserService userService;
-    private final KafkaProducerService producer;
-
-    static final class AttemptState {
-        boolean publicationStarted;
-        boolean methodCompleted;
-    }
+    private final UserInfoOutboxService userInfoOutboxService;
 
     static final class OwnerChangedException extends RuntimeException {}
 
@@ -49,8 +43,7 @@ public class UserVerificationAttemptService {
             UserVerificationVerifyMessage event,
             String value,
             Long claimantId,
-            Long observedOwnerId,
-            AttemptState state) {
+            Long observedOwnerId) {
         List<Long> ids = new ArrayList<>();
         ids.add(claimantId);
         if (observedOwnerId != null && !observedOwnerId.equals(claimantId))
@@ -74,7 +67,7 @@ public class UserVerificationAttemptService {
             throw new OwnerChangedException();
         entityManager.refresh(token, LockModeType.PESSIMISTIC_WRITE);
         LocalDateTime now = LocalDateTime.now();
-        List<UserInfoUpdateEvent> events = new ArrayList<>();
+        List<User> changedUsers = new ArrayList<>();
 
         if (token.isRevoked()) {
             failure(user, token, event, now, VerificationFailureReason.TOKEN_REVOKED);
@@ -104,7 +97,7 @@ public class UserVerificationAttemptService {
                 oldOwner.updateVerificationStatus(false, null);
                 oldOwner.updateGameProfile(userService.generateRandomNickname(), null);
                 entityManager.flush();
-                events.add(UserInfoUpdateEvent.of(oldOwner));
+                changedUsers.add(oldOwner);
             }
 
             UserVerification summary = verifications.findByUserIdForUpdate(claimantId).orElse(null);
@@ -135,16 +128,14 @@ public class UserVerificationAttemptService {
                             .verificationSuccess(true)
                             .token(token)
                             .build());
-            events.add(UserInfoUpdateEvent.of(user));
+            changedUsers.add(user);
             LOG.info("User verification success via kafka. result=VERIFIED, userId={}", claimantId);
         }
 
         entityManager.flush();
-        for (UserInfoUpdateEvent update : events) {
-            state.publicationStarted = true;
-            producer.sendUserInfoUpdateEvent(update);
+        for (User changedUser : changedUsers) {
+            userInfoOutboxService.enqueue(changedUser);
         }
-        state.methodCompleted = true;
     }
 
     private void failure(

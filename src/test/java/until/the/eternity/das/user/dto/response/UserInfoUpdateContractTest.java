@@ -43,7 +43,12 @@ class UserInfoUpdateContractTest {
     void verifiedUserPublishesServerAndOptionalProfile() throws Exception {
         var event =
                 new UserInfoUpdateEvent(
-                        42L, "contract-user", "https://example.invalid/profile.png", "류트", true);
+                        42L,
+                        "contract-user",
+                        "https://example.invalid/profile.png",
+                        "류트",
+                        true,
+                        8L);
         JsonNode payload = assertPayloadMatchesSchema(event);
         assertEquals("류트", payload.path("serverName").asText());
         assertEquals(event.profileImageUrl(), payload.path("profileImageUrl").asText());
@@ -56,7 +61,7 @@ class UserInfoUpdateContractTest {
         assertFalse(user.isVerified());
         assertNull(user.getServerName());
         assertNull(user.getProfileImageUrl());
-        JsonNode payload = assertPayloadMatchesSchema(UserInfoUpdateEvent.of(user));
+        JsonNode payload = assertPayloadMatchesSchema(UserInfoUpdateEvent.of(user, 7L));
         JsonNode fixture =
                 mapper.readTree(
                         Files.readString(Path.of("contracts/user-info-update.example.json")));

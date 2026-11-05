@@ -24,6 +24,7 @@ import until.the.eternity.das.user.entity.enums.Arcana;
 import until.the.eternity.das.user.entity.enums.Mbti;
 import until.the.eternity.das.user.entity.enums.Race;
 import until.the.eternity.das.user.entity.enums.Status;
+import until.the.eternity.das.user.outbox.UserInfoOutboxService;
 import until.the.eternity.das.verification.entity.UserVerification;
 import until.the.eternity.das.verification.entity.UserVerificationRepository;
 
@@ -32,6 +33,7 @@ class PublicUserProfileServiceTest {
     @Mock private UserRepository users;
     @Mock private S3Service images;
     @Mock private KafkaProducerService events;
+    @Mock private UserInfoOutboxService outbox;
     @Mock private NicknameCandidateService candidates;
     @Mock private EntityManager entityManager;
     @Mock private GameProfileService gameProfiles;

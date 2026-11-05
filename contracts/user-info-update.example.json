@@ -3,5 +3,6 @@
   "nickname": "contract-user",
   "profileImageUrl": null,
   "serverName": null,
-  "verified": false
+  "verified": false,
+  "revision": 7
 }

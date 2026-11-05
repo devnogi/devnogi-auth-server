@@ -23,6 +23,7 @@ import until.the.eternity.das.common.exception.GlobalExceptionCode;
 import until.the.eternity.das.user.dto.request.UserInfoUpdateRequest;
 import until.the.eternity.das.user.entity.User;
 import until.the.eternity.das.user.entity.UserRepository;
+import until.the.eternity.das.user.outbox.UserInfoOutboxService;
 import until.the.eternity.das.verification.entity.UserVerificationRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -30,6 +31,7 @@ class UserServiceNicknameTest {
     @Mock private UserRepository users;
     @Mock private S3Service images;
     @Mock private KafkaProducerService events;
+    @Mock private UserInfoOutboxService outbox;
     @Mock private NicknameCandidateService candidates;
     @Mock private EntityManager entityManager;
     @Mock private GameProfileService gameProfiles;
@@ -47,6 +49,8 @@ class UserServiceNicknameTest {
         verifyNoInteractions(candidates);
         verify(entityManager).refresh(user, LockModeType.PESSIMISTIC_WRITE);
         verify(users).flush();
+        verify(outbox).enqueue(user);
+        verifyNoInteractions(events);
     }
 
     @Test
