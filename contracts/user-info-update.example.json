@@ -2,5 +2,6 @@
   "id": 42,
   "nickname": "contract-user",
   "profileImageUrl": null,
-  "serverName": null
+  "serverName": null,
+  "verified": false
 }
