@@ -3,9 +3,13 @@ package until.the.eternity.das.user.dto.response;
 import until.the.eternity.das.user.entity.User;
 
 public record UserInfoUpdateEvent(
-        Long id, String nickname, String profileImageUrl, String serverName) {
+        Long id, String nickname, String profileImageUrl, String serverName, boolean verified) {
     public static UserInfoUpdateEvent of(User user) {
         return new UserInfoUpdateEvent(
-                user.getId(), user.getNickname(), user.getProfileImageUrl(), user.getServerName());
+                user.getId(),
+                user.getNickname(),
+                user.getProfileImageUrl(),
+                user.getServerName(),
+                user.isVerified());
     }
 }

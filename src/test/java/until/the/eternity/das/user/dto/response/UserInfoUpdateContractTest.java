@@ -43,10 +43,11 @@ class UserInfoUpdateContractTest {
     void verifiedUserPublishesServerAndOptionalProfile() throws Exception {
         var event =
                 new UserInfoUpdateEvent(
-                        42L, "contract-user", "https://example.invalid/profile.png", "류트");
+                        42L, "contract-user", "https://example.invalid/profile.png", "류트", true);
         JsonNode payload = assertPayloadMatchesSchema(event);
         assertEquals("류트", payload.path("serverName").asText());
         assertEquals(event.profileImageUrl(), payload.path("profileImageUrl").asText());
+        assertTrue(payload.path("verified").asBoolean());
     }
 
     private void assertRegisteredUserMatchesFixture(User user) throws Exception {
@@ -85,7 +86,9 @@ class UserInfoUpdateContractTest {
                                 ? "null"
                                 : value.isIntegralNumber()
                                         ? "integer"
-                                        : value.isTextual() ? "string" : "unsupported";
+                                        : value.isTextual()
+                                                ? "string"
+                                                : value.isBoolean() ? "boolean" : "unsupported";
                 JsonNode allowed = rule.path("type");
                 boolean valid = allowed.isTextual() && allowed.asText().equals(type);
                 for (JsonNode candidate : allowed) {

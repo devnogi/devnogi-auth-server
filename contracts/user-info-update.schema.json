@@ -27,12 +27,17 @@
       ],
       "minLength": 1,
       "description": "마비노기 서버명. 일반/소셜 가입 직후 인증 전에는 null; 필드는 payload에 포함된다."
+    },
+    "verified": {
+      "type": "boolean",
+      "description": "마비노기 사용자 인증 상태"
     }
   },
   "required": [
     "id",
     "nickname",
-    "serverName"
+    "serverName",
+    "verified"
   ],
   "additionalProperties": true
 }
