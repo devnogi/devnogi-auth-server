@@ -31,11 +31,12 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import until.the.eternity.das.auth.application.NicknameCandidateService;
-import until.the.eternity.das.common.application.KafkaProducerService;
 import until.the.eternity.das.common.application.S3Service;
 import until.the.eternity.das.common.exception.CustomException;
 import until.the.eternity.das.common.exception.GlobalExceptionCode;
 import until.the.eternity.das.user.application.UserService;
+import until.the.eternity.das.user.entity.User;
+import until.the.eternity.das.user.outbox.UserInfoOutboxService;
 import until.the.eternity.das.verification.entity.UserVerificationRepository;
 import until.the.eternity.das.verification.entity.UserVerificationTokenRepository;
 import until.the.eternity.das.verification.kafka.UserVerificationVerifyMessage;
@@ -60,14 +61,14 @@ class UserVerificationConcurrencyMySqlTest {
     @MockitoSpyBean UserVerificationTokenRepository tokens;
     @MockitoSpyBean UserVerificationRepository verifications;
     @MockitoSpyBean UserVerificationAttemptService attempts;
-    @MockitoBean KafkaProducerService producer;
+    @MockitoBean UserInfoOutboxService outbox;
     @MockitoBean UserService users;
     @MockitoBean NicknameCandidateService candidates;
     @MockitoBean S3Service images;
 
     @BeforeEach
     void setup() {
-        reset(tokens, verifications, attempts, producer, users);
+        reset(tokens, verifications, attempts, outbox, users);
         when(users.generateRandomNickname())
                 .thenAnswer(i -> "대체" + UUID.randomUUID().toString().substring(0, 12));
     }
@@ -188,8 +189,8 @@ class UserVerificationConcurrencyMySqlTest {
                             assertTrue(release.await(15, TimeUnit.SECONDS));
                             return null;
                         })
-                .when(producer)
-                .sendUserInfoUpdateEvent(any());
+                .when(outbox)
+                .enqueue(any(User.class));
         ExecutorService pool = Executors.newFixedThreadPool(2);
         try {
             Future<Object> verification =
@@ -376,7 +377,7 @@ class UserVerificationConcurrencyMySqlTest {
                                 "SELECT count(*) FROM user_verification WHERE user_id=?",
                                 Integer.class,
                                 id));
-                verifyNoInteractions(producer);
+                verifyNoInteractions(outbox);
             } finally {
                 lock.rollback();
             }
@@ -416,14 +417,14 @@ class UserVerificationConcurrencyMySqlTest {
         String value = token(id);
         doThrow(new UserVerificationAttemptService.OwnerChangedException())
                 .when(attempts)
-                .execute(any(), anyString(), eq(id), any(), any());
+                .execute(any(), anyString(), eq(id), any());
         Object result = verifyPayload(payload("충돌" + id, value));
         assertTrue(result instanceof CustomException);
         assertEquals(
                 GlobalExceptionCode.USER_VERIFICATION_INVALID,
                 ((CustomException) result).getCode());
-        verify(attempts, times(3)).execute(any(), eq(value), eq(id), any(), any());
-        verifyNoInteractions(producer);
+        verify(attempts, times(3)).execute(any(), eq(value), eq(id), any());
+        verifyNoInteractions(outbox);
         assertEquals(
                 0,
                 jdbc.queryForObject(
@@ -466,7 +467,7 @@ class UserVerificationConcurrencyMySqlTest {
             release.countDown();
             assertFalse(result.get(20, TimeUnit.SECONDS) instanceof Exception);
             assertTrue(calls.get() >= 4);
-            verify(producer, times(2)).sendUserInfoUpdateEvent(any());
+            verify(outbox, times(2)).enqueue(any(User.class));
             assertEquals(
                     claimant,
                     jdbc.queryForObject(

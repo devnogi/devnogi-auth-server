@@ -176,6 +176,15 @@ app:
   kafka:
     topics:
       user-verification-verify: ${KAFKA_TOPIC_USER_VERIFICATION_VERIFY:USER_VERIFICATION_VERIFY_EVENT}
+  user-info-outbox:
+    poll-interval-ms: ${USER_INFO_OUTBOX_POLL_INTERVAL_MS:1000}
+    batch-size: ${USER_INFO_OUTBOX_BATCH_SIZE:50}
+    lease-duration: ${USER_INFO_OUTBOX_LEASE_DURATION:PT1M}
+    base-backoff: ${USER_INFO_OUTBOX_BASE_BACKOFF:PT5S}
+    max-backoff: ${USER_INFO_OUTBOX_MAX_BACKOFF:PT10M}
+    backfill-enabled: ${USER_INFO_OUTBOX_BACKFILL_ENABLED:false}
+    backfill-batch-size: ${USER_INFO_OUTBOX_BACKFILL_BATCH_SIZE:100}
+    backfill-interval-ms: ${USER_INFO_OUTBOX_BACKFILL_INTERVAL_MS:60000}
 
 ---
 spring:

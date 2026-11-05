@@ -11,19 +11,18 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import until.the.eternity.das.auth.application.NicknameCandidateService;
 import until.the.eternity.das.common.aop.ActiveUserRequired;
-import until.the.eternity.das.common.application.KafkaProducerService;
 import until.the.eternity.das.common.application.S3Service;
 import until.the.eternity.das.common.exception.CustomException;
 import until.the.eternity.das.common.exception.GlobalExceptionCode;
 import until.the.eternity.das.user.dto.request.UserInfoUpdateRequest;
 import until.the.eternity.das.user.dto.response.PublicUserProfileResponse;
 import until.the.eternity.das.user.dto.response.UserInfoResponse;
-import until.the.eternity.das.user.dto.response.UserInfoUpdateEvent;
 import until.the.eternity.das.user.entity.User;
 import until.the.eternity.das.user.entity.UserRepository;
 import until.the.eternity.das.user.entity.enums.NicknameAdjective;
 import until.the.eternity.das.user.entity.enums.NicknameWord;
 import until.the.eternity.das.user.entity.enums.Status;
+import until.the.eternity.das.user.outbox.UserInfoOutboxService;
 import until.the.eternity.das.verification.entity.UserVerificationRepository;
 
 @Service
@@ -38,7 +37,7 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final S3Service s3Service;
-    private final KafkaProducerService kafkaProducerService;
+    private final UserInfoOutboxService userInfoOutboxService;
     private final NicknameCandidateService nicknameCandidateService;
     private final EntityManager entityManager;
     private final GameProfileService gameProfileService;
@@ -85,15 +84,8 @@ public class UserService {
         }
         gameProfileService.replace(user, gameProfile);
 
-        try {
-            UserInfoUpdateEvent kafKaEvent = UserInfoUpdateEvent.of(user);
-
-            kafkaProducerService.sendUserInfoUpdateEvent(kafKaEvent);
-
-            return true;
-        } catch (Exception e) {
-            throw new CustomException(GlobalExceptionCode.USER_INFO_UPDATE_FAILED);
-        }
+        userInfoOutboxService.enqueue(user);
+        return true;
     }
 
     @Transactional

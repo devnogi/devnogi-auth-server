@@ -3,9 +3,11 @@ package until.the.eternity.das.oauth.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -20,11 +22,17 @@ import until.the.eternity.das.common.exception.CustomException;
 import until.the.eternity.das.common.exception.GlobalExceptionCode;
 import until.the.eternity.das.common.util.JwtUtil;
 import until.the.eternity.das.oauth.dto.OauthUserDTO;
+import until.the.eternity.das.oauth.entity.OauthUser;
 import until.the.eternity.das.oauth.entity.OauthUserRepository;
+import until.the.eternity.das.role.entity.Role;
 import until.the.eternity.das.role.entity.RoleRepository;
+import until.the.eternity.das.role.entity.enums.Name;
 import until.the.eternity.das.token.application.TokenService;
 import until.the.eternity.das.user.application.GameProfileService;
+import until.the.eternity.das.user.entity.User;
 import until.the.eternity.das.user.entity.UserRepository;
+import until.the.eternity.das.user.entity.enums.Status;
+import until.the.eternity.das.user.outbox.UserInfoOutboxService;
 
 @ExtendWith(MockitoExtension.class)
 class SocialAuthNicknameTest {
@@ -36,10 +44,45 @@ class SocialAuthNicknameTest {
     @Mock private JwtUtil jwt;
     @Mock private TokenService tokens;
     @Mock private KafkaProducerService events;
+    @Mock private UserInfoOutboxService outbox;
     @Mock private NicknameCandidateService candidates;
     @Mock private OAuthExchangeService exchange;
     @InjectMocks private SocialAuthService service;
     @Mock private GameProfileService gameProfileService;
+
+    @Test
+    void socialSignupEnqueuesSnapshotWithoutSendingKafkaOnRequestThread() {
+        SocialSignUpRequest request =
+                new SocialSignUpRequest(
+                        "google",
+                        "provider-id",
+                        "social@example.invalid",
+                        "generatedName",
+                        "ticket",
+                        "proof",
+                        null);
+        OauthUserDTO identity = new OauthUserDTO("provider-id", "social@example.invalid", "GOOGLE");
+        Role role = Role.builder().id(3L).name(Name.USER).build();
+        User user =
+                User.builder()
+                        .id(99L)
+                        .email(identity.getEmail())
+                        .nickname(request.nickname())
+                        .status(Status.ACTIVE)
+                        .role(role)
+                        .build();
+        when(exchange.consumeSignupProof("proof", "binding")).thenReturn(identity);
+        when(roles.findByName(Name.USER)).thenReturn(Optional.of(role));
+        when(converter.fromOauthUserDTOToUser(identity, request.nickname(), role, null))
+                .thenReturn(user);
+
+        assertEquals(99L, service.completeSocialSignup(request, "binding").id());
+
+        verify(users).saveAndFlush(user);
+        verify(oauthUsers).save(org.mockito.ArgumentMatchers.any(OauthUser.class));
+        verify(outbox).enqueue(user);
+        verifyNoInteractions(events);
+    }
 
     @Test
     void socialSignupRejectsManualNicknameBeforeDatabaseOrKafka() {

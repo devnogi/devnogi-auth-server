@@ -24,11 +24,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.springframework.test.util.ReflectionTestUtils;
-import until.the.eternity.das.common.application.KafkaProducerService;
 import until.the.eternity.das.common.exception.CustomException;
 import until.the.eternity.das.user.application.UserService;
 import until.the.eternity.das.user.entity.User;
 import until.the.eternity.das.user.entity.UserRepository;
+import until.the.eternity.das.user.outbox.UserInfoOutboxService;
 import until.the.eternity.das.verification.entity.UserVerificationHistoryRepository;
 import until.the.eternity.das.verification.entity.UserVerificationRepository;
 import until.the.eternity.das.verification.entity.UserVerificationToken;
@@ -53,7 +53,7 @@ class UserVerificationLogTest {
         verifications = mock(UserVerificationRepository.class);
         entityManager = mock(EntityManager.class);
         UserVerificationHistoryRepository histories = mock(UserVerificationHistoryRepository.class);
-        KafkaProducerService producer = mock(KafkaProducerService.class);
+        UserInfoOutboxService outbox = mock(UserInfoOutboxService.class);
         UserService userService = mock(UserService.class);
         service =
                 new UserVerificationService(
@@ -70,7 +70,7 @@ class UserVerificationLogTest {
                                 verifications,
                                 histories,
                                 userService,
-                                producer));
+                                outbox));
         ReflectionTestUtils.setField(service, "verificationPrefix", "메모노기_");
     }
 

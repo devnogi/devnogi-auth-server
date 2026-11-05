@@ -40,6 +40,7 @@ import until.the.eternity.das.token.application.TokenService;
 import until.the.eternity.das.user.application.GameProfileService;
 import until.the.eternity.das.user.entity.User;
 import until.the.eternity.das.user.entity.UserRepository;
+import until.the.eternity.das.user.outbox.UserInfoOutboxService;
 
 @ExtendWith(MockitoExtension.class)
 class AuthServiceTest {
@@ -54,6 +55,7 @@ class AuthServiceTest {
     @Mock private TokenService tokenService;
     @Mock private S3Service s3Service;
     @Mock private KafkaProducerService kafkaProducerService;
+    @Mock private UserInfoOutboxService userInfoOutboxService;
     @Mock private NicknameCandidateService nicknameCandidateService;
     @Mock private AccountLockRepository accountLockRepository;
     @Mock private LoginHistoryRepository loginHistoryRepository;
@@ -128,6 +130,8 @@ class AuthServiceTest {
                 .validateForChange(signUpRequest.nickname(), signUpRequest.nicknameTicket());
         verify(gameProfileService).normalize(signUpRequest);
         verify(gameProfileService).replace(user, null);
+        verify(userInfoOutboxService).enqueue(user);
+        verifyNoInteractions(kafkaProducerService);
     }
 
     @Test

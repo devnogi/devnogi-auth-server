@@ -31,6 +31,11 @@
     "verified": {
       "type": "boolean",
       "description": "마비노기 사용자 인증 상태"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "사용자별 단조 증가 스냅샷 revision. 구형 이벤트에는 없을 수 있다."
     }
   },
   "required": [

@@ -30,14 +30,14 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import until.the.eternity.das.auth.application.NicknameCandidateService;
-import until.the.eternity.das.common.application.KafkaProducerService;
 import until.the.eternity.das.common.application.S3Service;
 import until.the.eternity.das.common.exception.CustomException;
 import until.the.eternity.das.common.exception.ExceptionCode;
 import until.the.eternity.das.common.exception.GlobalExceptionCode;
 import until.the.eternity.das.user.application.UserService;
 import until.the.eternity.das.user.dto.request.UserInfoUpdateRequest;
-import until.the.eternity.das.user.dto.response.UserInfoUpdateEvent;
+import until.the.eternity.das.user.entity.User;
+import until.the.eternity.das.user.outbox.UserInfoOutboxService;
 import until.the.eternity.das.verification.kafka.UserVerificationVerifyMessage;
 
 @SpringBootTest
@@ -59,12 +59,12 @@ class NicknameConcurrencyMySqlTest {
     @Autowired private UserVerificationService verifications;
     @Autowired private ObjectMapper json;
     @MockitoBean private NicknameCandidateService candidates;
-    @MockitoBean private KafkaProducerService events;
+    @MockitoBean private UserInfoOutboxService outbox;
     @MockitoBean private S3Service images;
 
     @BeforeEach
     void resetMocks() {
-        reset(candidates, events, images);
+        reset(candidates, outbox, images);
     }
 
     @Test
@@ -115,15 +115,15 @@ class NicknameConcurrencyMySqlTest {
         CountDownLatch releaseVerification = new CountDownLatch(1);
         doAnswer(
                         call -> {
-                            UserInfoUpdateEvent event = call.getArgument(0);
-                            if (character.equals(event.nickname())) {
+                            User user = call.getArgument(0);
+                            if (character.equals(user.getNickname())) {
                                 verificationHoldingRowLock.countDown();
                                 assertTrue(releaseVerification.await(15, TimeUnit.SECONDS));
                             }
                             return null;
                         })
-                .when(events)
-                .sendUserInfoUpdateEvent(any(UserInfoUpdateEvent.class));
+                .when(outbox)
+                .enqueue(any(User.class));
 
         ExecutorService executor = Executors.newFixedThreadPool(2);
         try {
