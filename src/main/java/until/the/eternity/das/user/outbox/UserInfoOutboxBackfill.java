@@ -1,7 +1,6 @@
 package until.the.eternity.das.user.outbox;
 
 import io.micrometer.core.instrument.MeterRegistry;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -12,14 +11,20 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 @ConditionalOnProperty(name = "app.user-info-outbox.backfill-enabled", havingValue = "true")
 public class UserInfoOutboxBackfill {
     private final JdbcTemplate jdbc;
     private final MeterRegistry metrics;
+    private final int batchSize;
 
-    @Value("${app.user-info-outbox.backfill-batch-size:100}")
-    private int batchSize;
+    public UserInfoOutboxBackfill(
+            JdbcTemplate jdbc,
+            MeterRegistry metrics,
+            @Value("${app.user-info-outbox.backfill-batch-size:100}") int batchSize) {
+        this.jdbc = jdbc;
+        this.metrics = metrics;
+        this.batchSize = batchSize;
+    }
 
     @Scheduled(fixedDelayString = "${app.user-info-outbox.backfill-interval-ms:60000}")
     @Transactional
@@ -30,11 +35,12 @@ public class UserInfoOutboxBackfill {
                         INSERT IGNORE INTO user_info_outbox (
                             user_id, revision, published_revision, nickname,
                             profile_image_url, server_name, verified,
-                            attempt_count, next_attempt_at, created_at, updated_at
+                            attempt_count, next_attempt_at, pending_since, created_at, updated_at
                         )
                         SELECT u.id, 1, 0, u.nickname,
                                u.profile_image_url, u.server_name, u.is_verified,
-                               0, UTC_TIMESTAMP(6), UTC_TIMESTAMP(6), UTC_TIMESTAMP(6)
+                               0, UTC_TIMESTAMP(6), UTC_TIMESTAMP(6),
+                               UTC_TIMESTAMP(6), UTC_TIMESTAMP(6)
                         FROM users u
                         LEFT JOIN user_info_outbox o ON o.user_id = u.id
                         WHERE o.user_id IS NULL

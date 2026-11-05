@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.UUID;
@@ -163,6 +164,7 @@ class UserInfoOutboxJpaTest {
     @Test
     void failedClaimBacksOffBeforeRetry() {
         Long userId = createPendingUser("retry-name");
+        LocalDateTime pendingSince = outboxes.findById(userId).orElseThrow().getPendingSince();
         ClaimedUserInfoUpdate claim = dispatch.claimBatch(1, Duration.ofMinutes(1)).getFirst();
 
         assertThat(dispatch.markFailed(claim, Duration.ofSeconds(5))).isTrue();
@@ -171,6 +173,8 @@ class UserInfoOutboxJpaTest {
         ClaimedUserInfoUpdate retry = dispatch.claimBatch(1, Duration.ofMinutes(1)).getFirst();
         assertThat(retry.userId()).isEqualTo(userId);
         assertThat(retry.attemptCount()).isEqualTo(1);
+        assertThat(outboxes.findById(userId).orElseThrow().getPendingSince())
+                .isEqualTo(pendingSince);
     }
 
     private Long createPendingUser(String nickname) {

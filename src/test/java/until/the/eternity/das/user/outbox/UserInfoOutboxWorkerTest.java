@@ -3,6 +3,7 @@ package until.the.eternity.das.user.outbox;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -11,9 +12,13 @@ import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import until.the.eternity.das.common.application.KafkaProducerService;
 import until.the.eternity.das.user.dto.response.UserInfoUpdateEvent;
 
+@ExtendWith(OutputCaptureExtension.class)
 class UserInfoOutboxWorkerTest {
     UserInfoOutboxDispatchService dispatch;
     KafkaProducerService producer;
@@ -60,6 +65,29 @@ class UserInfoOutboxWorkerTest {
 
         verify(dispatch).markFailed(claim, Duration.ofSeconds(20));
         assertEquals(1.0, metrics.counter("memonogi.user.info.outbox.publish.failure").count());
+    }
+
+    @Test
+    void acknowledgementDatabaseFailureIsObservableAndKeepsLease(CapturedOutput output) {
+        ClaimedUserInfoUpdate claim = claim(3L, 0);
+        when(producer.sendUserInfoUpdateEvent("42", claim.event()))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        doThrow(new IllegalStateException("synthetic database failure"))
+                .when(dispatch)
+                .markPublished(claim);
+
+        worker.publish(claim);
+
+        verify(dispatch, never()).markFailed(claim, Duration.ofSeconds(5));
+        assertEquals(
+                1.0,
+                metrics.counter("memonogi.user.info.outbox.publish.acknowledgement.failure")
+                        .count());
+        assertEquals(0.0, metrics.counter("memonogi.user.info.outbox.publish.failure").count());
+        org.assertj.core.api.Assertions.assertThat(output)
+                .contains("claim lease will be retried")
+                .contains("userId=42, revision=3, exceptionType=IllegalStateException")
+                .doesNotContain("nickname", "synthetic database failure");
     }
 
     @Test

@@ -49,9 +49,14 @@ public class UserInfoOutboxWorker {
                     .whenComplete(
                             (ignored, failure) -> {
                                 if (failure == null) {
-                                    if (dispatch.markPublished(claim)) {
-                                        metrics.counter("memonogi.user.info.outbox.publish.success")
-                                                .increment();
+                                    try {
+                                        if (dispatch.markPublished(claim)) {
+                                            metrics.counter(
+                                                            "memonogi.user.info.outbox.publish.success")
+                                                    .increment();
+                                        }
+                                    } catch (RuntimeException acknowledgementFailure) {
+                                        recordAcknowledgementFailure(claim, acknowledgementFailure);
                                     }
                                     return;
                                 }
@@ -73,6 +78,16 @@ public class UserInfoOutboxWorker {
                     backoff.toSeconds(),
                     failure.getClass().getSimpleName());
         }
+    }
+
+    private void recordAcknowledgementFailure(
+            ClaimedUserInfoUpdate claim, RuntimeException failure) {
+        metrics.counter("memonogi.user.info.outbox.publish.acknowledgement.failure").increment();
+        log.error(
+                "User summary publication acknowledgement failed; the claim lease will be retried. userId={}, revision={}, exceptionType={}",
+                claim.userId(),
+                claim.revision(),
+                failure.getClass().getSimpleName());
     }
 
     Duration retryBackoff(int attemptCount) {

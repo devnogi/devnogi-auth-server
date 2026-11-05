@@ -50,6 +50,9 @@ public class UserInfoOutbox {
     @Column(name = "claim_until")
     private LocalDateTime claimUntil;
 
+    @Column(name = "pending_since", nullable = false)
+    private LocalDateTime pendingSince;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -64,12 +67,14 @@ public class UserInfoOutbox {
         outbox.copySnapshot(user);
         outbox.attemptCount = 0;
         outbox.nextAttemptAt = now;
+        outbox.pendingSince = now;
         outbox.createdAt = now;
         outbox.updatedAt = now;
         return outbox;
     }
 
     public void replaceWith(User user, LocalDateTime now) {
+        if (publishedRevision >= revision) pendingSince = now;
         revision++;
         copySnapshot(user);
         attemptCount = 0;

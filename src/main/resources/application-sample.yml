@@ -185,6 +185,14 @@ app:
     backfill-enabled: ${USER_INFO_OUTBOX_BACKFILL_ENABLED:false}
     backfill-batch-size: ${USER_INFO_OUTBOX_BACKFILL_BATCH_SIZE:100}
     backfill-interval-ms: ${USER_INFO_OUTBOX_BACKFILL_INTERVAL_MS:60000}
+    observation:
+      interval-ms: ${USER_INFO_OUTBOX_OBSERVATION_INTERVAL_MS:30000}
+      warn-pending-count: ${USER_INFO_OUTBOX_WARN_PENDING_COUNT:100}
+      error-pending-count: ${USER_INFO_OUTBOX_ERROR_PENDING_COUNT:1000}
+      warn-oldest-age-seconds: ${USER_INFO_OUTBOX_WARN_OLDEST_AGE_SECONDS:300}
+      error-oldest-age-seconds: ${USER_INFO_OUTBOX_ERROR_OLDEST_AGE_SECONDS:1800}
+      warn-max-attempts: ${USER_INFO_OUTBOX_WARN_MAX_ATTEMPTS:3}
+      error-max-attempts: ${USER_INFO_OUTBOX_ERROR_MAX_ATTEMPTS:10}
 
 ---
 spring:

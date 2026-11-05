@@ -72,4 +72,12 @@ public interface UserInfoOutboxRepository extends JpaRepository<UserInfoOutbox, 
 
     @Query("select count(o) from UserInfoOutbox o where o.publishedRevision < o.revision")
     long countPending();
+
+    @Query(
+            "select min(o.pendingSince) from UserInfoOutbox o where o.publishedRevision < o.revision")
+    LocalDateTime findOldestPendingSince();
+
+    @Query(
+            "select max(o.attemptCount) from UserInfoOutbox o where o.publishedRevision < o.revision")
+    Integer findMaxPendingAttemptCount();
 }
