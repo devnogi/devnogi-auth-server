@@ -15,6 +15,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import until.the.eternity.das.auth.application.NicknameCandidateService;
 import until.the.eternity.das.common.application.KafkaProducerService;
 import until.the.eternity.das.common.application.S3Service;
@@ -36,6 +37,7 @@ class UserServiceNicknameTest {
     @Mock private EntityManager entityManager;
     @Mock private GameProfileService gameProfiles;
     @Mock private UserVerificationRepository verifications;
+    @Mock private ApplicationEventPublisher eventPublisher;
     @InjectMocks private UserService service;
 
     @Test

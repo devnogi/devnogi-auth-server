@@ -4,6 +4,7 @@ import io.awspring.cloud.s3.S3Resource;
 import io.awspring.cloud.s3.S3Template;
 import java.io.IOException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.UUID;
@@ -41,7 +42,10 @@ public class S3Service {
 
             return resource.getURL().toString();
         } catch (IOException e) {
-            log.error("S3 이미지 업로드 실패: {}", e.getMessage());
+            log.error("S3 image upload failed. bucket={}", bucket, e);
+            throw new CustomException(GlobalExceptionCode.FILE_UPLOAD_FAILED);
+        } catch (RuntimeException e) {
+            log.error("S3 image upload failed. bucket={}", bucket, e);
             throw new CustomException(GlobalExceptionCode.FILE_UPLOAD_FAILED);
         }
     }
@@ -49,19 +53,37 @@ public class S3Service {
     // 이미지 삭제
     public void deleteImage(String imageUrl) {
         try {
-            URI uri = new URI(imageUrl);
-            String path = uri.getPath();
-
-            String key =
-                    path.startsWith("/" + bucket + "/")
-                            ? path.substring(bucket.length() + 2)
-                            : path.substring(1);
-
-            s3Template.deleteObject(bucket, key);
+            String key = deleteObject(imageUrl);
             log.info("S3 이미지 삭제 완료. Key: {}", key);
         } catch (Exception e) {
-            log.error("S3 이미지 삭제 실패: {}, 이미지 URL: {}", e.getMessage(), imageUrl);
+            log.error("S3 image deletion failed", e);
             throw new CustomException(GlobalExceptionCode.FILE_DELETE_FAILED);
         }
+    }
+
+    public void deleteImageQuietly(String imageUrl) {
+        if (imageUrl == null || imageUrl.isBlank()) {
+            return;
+        }
+
+        try {
+            String key = deleteObject(imageUrl);
+            log.info("S3 deferred image cleanup completed. Key: {}", key);
+        } catch (Exception e) {
+            log.error("S3 deferred image cleanup failed", e);
+        }
+    }
+
+    private String deleteObject(String imageUrl) throws URISyntaxException {
+        URI uri = new URI(imageUrl);
+        String path = uri.getPath();
+
+        String key =
+                path.startsWith("/" + bucket + "/")
+                        ? path.substring(bucket.length() + 2)
+                        : path.substring(1);
+
+        s3Template.deleteObject(bucket, key);
+        return key;
     }
 }

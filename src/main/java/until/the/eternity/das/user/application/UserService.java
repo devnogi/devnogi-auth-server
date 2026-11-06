@@ -7,6 +7,7 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import until.the.eternity.das.auth.application.NicknameCandidateService;
@@ -42,6 +43,7 @@ public class UserService {
     private final EntityManager entityManager;
     private final GameProfileService gameProfileService;
     private final UserVerificationRepository userVerificationRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     @ActiveUserRequired
@@ -65,15 +67,14 @@ public class UserService {
             ensureNicknameAvailable(nextNickname, userId);
         }
 
-        String profileImageUrl = user.getProfileImageUrl();
+        String previousProfileImageUrl = user.getProfileImageUrl();
+        String profileImageUrl = previousProfileImageUrl;
 
         if (request.file() != null) {
-            if (user.getProfileImageUrl() != null) {
-                s3Service.deleteImage(user.getProfileImageUrl());
-            }
-
             String dirName = "profile";
             profileImageUrl = s3Service.uploadImage(request.file(), dirName);
+            eventPublisher.publishEvent(
+                    new ProfileImageReplacementEvent(previousProfileImageUrl, profileImageUrl));
         }
 
         user.updateUserInfo(nextNickname, profileImageUrl);
