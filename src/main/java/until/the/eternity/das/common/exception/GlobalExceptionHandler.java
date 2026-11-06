@@ -23,6 +23,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     protected ResponseEntity<CommonResponse<?>> handleException(Exception exception) {
+        log.error("Unhandled server exception", exception);
         ExceptionResponse exResponse = ExceptionResponse.from(SERVER_ERROR);
         CommonResponse<?> response = CommonResponse.error(exResponse.code(), exResponse.message());
         return ResponseEntity.status(exResponse.status()).body(response);
