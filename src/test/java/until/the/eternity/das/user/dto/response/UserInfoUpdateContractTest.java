@@ -19,6 +19,21 @@ import until.the.eternity.das.role.entity.enums.Name;
 import until.the.eternity.das.user.entity.User;
 
 class UserInfoUpdateContractTest {
+    @Test
+    void explicitArcanaClearSurvivesGlobalNonNullSerialization() throws Exception {
+        var mapper =
+                new ObjectMapper()
+                        .setSerializationInclusion(
+                                com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL);
+        var event =
+                new UserInfoUpdateEvent(42L, "member", null, null, false, 1L, null, "DARK_MAGE");
+        assertEquals("DARK_MAGE", assertPayloadMatchesSchema(event).path("arcana").asText());
+        var cleared = new UserInfoUpdateEvent(42L, "member", null, null, false, 2L, null, null);
+        var payload = mapper.readTree(mapper.writeValueAsBytes(cleared));
+        assertTrue(payload.has("arcana"));
+        assertTrue(payload.get("arcana").isNull());
+    }
+
     private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
     private final AuthConverter converter = new AuthConverter();
     private final Role role = Role.builder().id(1L).name(Name.USER).build();
