@@ -4,6 +4,11 @@
   "title": "USER_INFO_UPDATE_EVENT",
   "type": "object",
   "properties": {
+    "activityGrade": {
+      "type": ["string", "null"],
+      "enum": ["APPRENTICE", "SENIOR", "EXPERT", "CHAMPION", "MASTER", "GRANDMASTER", null],
+      "description": "Activity rank, separate from role. Optional for old producers; hidden when unverified."
+    },
     "id": {
       "type": "integer",
       "description": "사용자 식별자"

@@ -153,6 +153,10 @@ decorator:
       enable-logging: false
 
 app:
+  experience:
+    consumer-enabled: ${EXPERIENCE_CONSUMER_ENABLED:false}
+    topic: ${EXPERIENCE_TOPIC:USER_ACTIVITY_EVENT}
+    group-id: ${EXPERIENCE_GROUP_ID:devnogi-auth-experience-v1}
   search:
     cache-key: ${USER_SEARCH_CACHE_KEY:auth:total-search:user-snapshot:v1}
     ttl: ${USER_SEARCH_CACHE_TTL:PT24H}

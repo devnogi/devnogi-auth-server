@@ -205,6 +205,36 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /api/user/experience:
+    get:
+      operationId: currentUserExperience
+      security: [{accessCookie: []}]
+      responses:
+        '200':
+          description: Current user's preserved XP and current eligibility. Public grade is null when ineligible.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ExperienceSuccess'}
+        '401': {description: Authentication required.}
+  /api/user/experience/history:
+    get:
+      operationId: currentUserExperienceHistory
+      security: [{accessCookie: []}]
+      parameters:
+        - in: query
+          name: cursor
+          schema: {type: integer, format: int64, minimum: 1}
+        - in: query
+          name: size
+          schema: {type: integer, minimum: 1, maximum: 100, default: 20}
+      responses:
+        '200':
+          description: Current user's immutable ledger in descending ID order.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ExperienceHistorySuccess'}
+        '400': {description: Invalid cursor or size.}
+        '401': {description: Authentication required.}
   /api/user/public/{userId}/profile:
     get:
       operationId: publicUserProfile
@@ -411,6 +441,7 @@ components:
         serverName: {type: string, nullable: true, description: Null before game-account verification.}
         role: {type: string, enum: [USER, ADMIN, SUPER_ADMIN]}
         verified: {type: boolean, description: Game-account verification state.}
+        activityGrade: {$ref: '#/components/schemas/ActivityGrade'}
         createdAt: {type: string, description: Existing local datetime serialization (no timezone suffix).}
         lastLoginAt: {type: string, nullable: true, description: Existing local datetime serialization.}
         mainChannel: {type: integer, minimum: 1, maximum: 42, nullable: true}
@@ -432,6 +463,7 @@ components:
         profileImageUrl: {type: string, nullable: true}
         serverName: {type: string, nullable: true}
         verified: {type: boolean}
+        activityGrade: {$ref: '#/components/schemas/ActivityGrade'}
         verificationCount: {type: integer, minimum: 0}
         mainChannel: {type: integer, minimum: 1, maximum: 42, nullable: true}
         guildName: {type: string, maxLength: 30, nullable: true}
@@ -443,6 +475,55 @@ components:
           items: {type: string}
         mbti: {$ref: '#/components/schemas/Mbti'}
         bio: {type: string, maxLength: 50, nullable: true}
+    ActivityGrade:
+      type: string
+      nullable: true
+      enum: [APPRENTICE, SENIOR, EXPERT, CHAMPION, MASTER, GRANDMASTER, null]
+    ExperienceSuccess:
+      allOf:
+        - {$ref: '#/components/schemas/Envelope'}
+        - properties:
+            data:
+              type: object
+              required: [eligible, activityGrade, totalXp, currentGradeMinXp, nextGrade, nextGradeMinXp, xpToNextGrade, progressPercent, grades]
+              properties:
+                eligible: {type: boolean}
+                activityGrade: {$ref: '#/components/schemas/ActivityGrade'}
+                totalXp: {type: integer, format: int64, minimum: 0}
+                currentGradeMinXp: {type: integer, format: int64}
+                nextGrade: {$ref: '#/components/schemas/ActivityGrade'}
+                nextGradeMinXp: {type: integer, format: int64, nullable: true}
+                xpToNextGrade: {type: integer, format: int64, minimum: 0}
+                progressPercent: {type: number, minimum: 0, maximum: 100}
+                grades:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      code: {$ref: '#/components/schemas/ActivityGrade'}
+                      label: {type: string}
+                      minXp: {type: integer, format: int64}
+    ExperienceHistorySuccess:
+      allOf:
+        - {$ref: '#/components/schemas/Envelope'}
+        - properties:
+            data:
+              type: object
+              required: [items, nextCursor]
+              properties:
+                nextCursor: {type: integer, format: int64, nullable: true}
+                items:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      id: {type: integer, format: int64}
+                      activityType: {type: string}
+                      activityName: {type: string}
+                      deltaXp: {type: integer, format: int64}
+                      totalXp: {type: integer, format: int64}
+                      occurredAt: {type: string, format: date-time}
+                      processedAt: {type: string, format: date-time}
     LoginSuccess:
       allOf:
         - {$ref: '#/components/schemas/Envelope'}

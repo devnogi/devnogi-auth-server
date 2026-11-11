@@ -3,6 +3,7 @@ package until.the.eternity.das.verification.application;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -67,6 +68,7 @@ public class UserVerificationAttemptService {
             throw new OwnerChangedException();
         entityManager.refresh(token, LockModeType.PESSIMISTIC_WRITE);
         LocalDateTime now = LocalDateTime.now();
+        LocalDateTime experienceNow = LocalDateTime.now(ZoneOffset.UTC);
         List<User> changedUsers = new ArrayList<>();
 
         if (token.isRevoked()) {
@@ -94,6 +96,7 @@ public class UserVerificationAttemptService {
                     throw new IllegalStateException("Profile and verification owner differ");
                 }
                 oldSummary.invalidate();
+                histories.closeExperienceIntervals(ownerId, experienceNow);
                 oldOwner.updateVerificationStatus(false, null);
                 oldOwner.updateGameProfile(userService.generateRandomNickname(), null);
                 entityManager.flush();
@@ -115,6 +118,7 @@ public class UserVerificationAttemptService {
                 if (!active.getId().equals(token.getId())) active.revoke(now);
             }
             summary.markVerified(event.serverName(), event.characterName(), now, token.getId());
+            histories.closeExperienceIntervals(claimantId, experienceNow);
             token.markVerified(now);
             user.updateGameProfile(event.characterName(), event.serverName());
             user.updateVerificationStatus(true, now);
@@ -125,6 +129,7 @@ public class UserVerificationAttemptService {
                             .serverName(event.serverName())
                             .characterName(event.characterName())
                             .verifiedAt(now)
+                            .experienceValidFrom(experienceNow)
                             .verificationSuccess(true)
                             .token(token)
                             .build());
@@ -134,6 +139,13 @@ public class UserVerificationAttemptService {
 
         entityManager.flush();
         for (User changedUser : changedUsers) {
+            if (changedUser.isVerified()) {
+                entityManager
+                        .createNativeQuery(
+                                "UPDATE users SET grade = COALESCE(grade, 'APPRENTICE') WHERE id = :id")
+                        .setParameter("id", changedUser.getId())
+                        .executeUpdate();
+            }
             userInfoOutboxService.enqueue(changedUser);
         }
     }

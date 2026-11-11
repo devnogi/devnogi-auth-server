@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import until.the.eternity.das.user.entity.User;
 import until.the.eternity.das.verification.entity.enums.VerificationFailureReason;
 
@@ -31,6 +33,17 @@ public class UserVerificationHistory {
 
     @Column(name = "verified_at", nullable = false)
     private LocalDateTime verifiedAt;
+
+    @JdbcTypeCode(SqlTypes.LOCAL_DATE_TIME)
+    @Column(name = "experience_valid_from")
+    private LocalDateTime experienceValidFrom;
+
+    @Column(name = "experience_baseline", nullable = false)
+    private boolean experienceBaseline;
+
+    @JdbcTypeCode(SqlTypes.LOCAL_DATE_TIME)
+    @Column(name = "valid_until")
+    private LocalDateTime validUntil;
 
     @Column(name = "verification_success", nullable = false)
     private boolean verificationSuccess;

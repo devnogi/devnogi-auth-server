@@ -1,6 +1,7 @@
 package until.the.eternity.das.user.dto.response;
 
 import java.util.List;
+import until.the.eternity.das.experience.ActivityGrade;
 import until.the.eternity.das.user.entity.User;
 import until.the.eternity.das.user.entity.UserGameProfile;
 
@@ -17,7 +18,8 @@ public record PublicUserProfileResponse(
         String arcana,
         List<String> preferredColors,
         String mbti,
-        String bio) {
+        String bio,
+        ActivityGrade activityGrade) {
     public static PublicUserProfileResponse of(
             User user, UserGameProfile profile, int verificationCount) {
         return new PublicUserProfileResponse(
@@ -33,6 +35,7 @@ public record PublicUserProfileResponse(
                 profile == null || profile.getArcana() == null ? null : profile.getArcana().name(),
                 ProfileResponseValues.preferredColors(profile),
                 profile == null || profile.getMbti() == null ? null : profile.getMbti().name(),
-                profile == null ? null : profile.getBio());
+                profile == null ? null : profile.getBio(),
+                user.visibleActivityGrade());
     }
 }

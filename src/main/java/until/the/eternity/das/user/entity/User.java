@@ -6,6 +6,7 @@ import lombok.*;
 import org.hibernate.annotations.Comment;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
+import until.the.eternity.das.experience.ActivityGrade;
 import until.the.eternity.das.role.entity.Role;
 import until.the.eternity.das.user.entity.enums.InactivatedType;
 import until.the.eternity.das.user.entity.enums.Status;
@@ -79,6 +80,12 @@ public class User {
     @Comment("최근 인증 성공 시각")
     private LocalDateTime verifiedAt;
 
+    // Existing detached/managed profile and login writers must never persist stale ranks.
+    // XP and first-verification paths update this column explicitly under the user lock.
+    @Column(length = 32, updatable = false)
+    @Enumerated(EnumType.STRING)
+    private ActivityGrade grade;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "role_id")
     private Role role;
@@ -108,6 +115,15 @@ public class User {
     public void updateVerificationStatus(boolean verified, LocalDateTime verifiedAt) {
         this.verified = verified;
         this.verifiedAt = verifiedAt;
+        if (verified && grade == null) grade = ActivityGrade.APPRENTICE;
+    }
+
+    public void updateActivityGrade(ActivityGrade grade) {
+        this.grade = grade;
+    }
+
+    public ActivityGrade visibleActivityGrade() {
+        return verified && status == Status.ACTIVE ? grade : null;
     }
 
     public void updateGameProfile(String nickname, String serverName) {

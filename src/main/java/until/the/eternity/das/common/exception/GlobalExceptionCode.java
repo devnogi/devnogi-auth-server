@@ -47,6 +47,7 @@ public enum GlobalExceptionCode implements ExceptionCode {
     // User
     USER_INFO_UPDATE_FAILED(INTERNAL_SERVER_ERROR, "사용자 정보 수정에 실패했습니다. 잠시 후 다시 시도해주세요."),
     INVALID_GAME_PROFILE_FORMAT(HttpStatus.BAD_REQUEST, "게임 프로필 입력값이 올바르지 않습니다."),
+    INVALID_EXPERIENCE_CURSOR(HttpStatus.BAD_REQUEST, "경험치 이력 조회 범위가 올바르지 않습니다."),
     PUBLIC_USER_PROFILE_NOT_FOUND(HttpStatus.NOT_FOUND, "공개 프로필을 찾을 수 없습니다."),
     USER_VERIFICATION_REQUIRED_FOR_IDENTITY_UPDATE(
             HttpStatus.BAD_REQUEST, "인증된 계정은 닉네임 또는 서버명을 변경하기 전에 재인증이 필요합니다."),
