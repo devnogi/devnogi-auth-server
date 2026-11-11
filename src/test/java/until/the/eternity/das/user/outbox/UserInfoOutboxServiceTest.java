@@ -23,6 +23,7 @@ class UserInfoOutboxServiceTest {
     @Mock UserInfoOutboxRepository outboxes;
     @Mock EntityManager entityManager;
     @Mock Query gradeQuery;
+    @Mock Query arcanaQuery;
     Clock clock = Clock.fixed(Instant.parse("2026-11-05T09:00:00Z"), ZoneOffset.UTC);
 
     @BeforeEach
@@ -30,6 +31,11 @@ class UserInfoOutboxServiceTest {
         when(entityManager.createNativeQuery("SELECT grade FROM users WHERE id = :id FOR UPDATE"))
                 .thenReturn(gradeQuery);
         when(gradeQuery.setParameter("id", 42L)).thenReturn(gradeQuery);
+        when(entityManager.createNativeQuery(
+                        "SELECT arcana FROM user_game_profile WHERE user_id = :id FOR UPDATE",
+                        String.class))
+                .thenReturn(arcanaQuery);
+        when(arcanaQuery.setParameter("id", 42L)).thenReturn(arcanaQuery);
     }
 
     @Test

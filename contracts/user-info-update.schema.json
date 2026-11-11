@@ -4,6 +4,11 @@
   "title": "USER_INFO_UPDATE_EVENT",
   "type": "object",
   "properties": {
+    "arcana": {
+      "type": ["string", "null"],
+      "enum": ["ELEMENTAL_KNIGHT", "SAINT_BARD", "DARK_MAGE", "ALCHEMIC_STINGER", "SACRED_GUARD", "BLAST_LANCER", "VARIABLE_GUNNER", "FORBIDDEN_ALCHEMIST", "MELODIC_PUPPETEER", "FURY_FIGHTER", null],
+      "description": "Optional public game profile. New producers always include this field: null clears, missing legacy field preserves the current projection."
+    },
     "activityGrade": {
       "type": ["string", "null"],
       "enum": ["APPRENTICE", "SENIOR", "EXPERT", "CHAMPION", "MASTER", "GRANDMASTER", null],

@@ -65,14 +65,16 @@ public class ExperienceOperations {
                 """
                 INSERT INTO user_info_outbox
                 (user_id, revision, published_revision, nickname, profile_image_url, server_name,
-                 verified, activity_grade, attempt_count, next_attempt_at, pending_since, created_at, updated_at)
-                SELECT id, 1, 0, nickname, profile_image_url, server_name, is_verified, grade,
-                       0, ?, ?, ?, ? FROM users WHERE is_verified = TRUE AND status = 'ACTIVE'
+                 verified, activity_grade, arcana, attempt_count, next_attempt_at, pending_since, created_at, updated_at)
+                SELECT u.id, 1, 0, u.nickname, u.profile_image_url, u.server_name, u.is_verified, u.grade,
+                       p.arcana, 0, ?, ?, ?, ? FROM users u LEFT JOIN user_game_profile p ON p.user_id=u.id
+                       WHERE u.is_verified = TRUE AND u.status = 'ACTIVE'
                 ON DUPLICATE KEY UPDATE
                   pending_since = IF(published_revision >= revision, VALUES(pending_since), pending_since),
                   revision = revision + 1, nickname = VALUES(nickname),
                   profile_image_url = VALUES(profile_image_url), server_name = VALUES(server_name),
                   verified = VALUES(verified), activity_grade = VALUES(activity_grade),
+                  arcana = VALUES(arcana),
                   attempt_count = 0, next_attempt_at = VALUES(next_attempt_at), updated_at = VALUES(updated_at)
                 """,
                 cutoff,

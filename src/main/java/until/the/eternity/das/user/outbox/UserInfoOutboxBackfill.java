@@ -34,15 +34,17 @@ public class UserInfoOutboxBackfill {
                         """
                         INSERT IGNORE INTO user_info_outbox (
                             user_id, revision, published_revision, nickname,
-                            profile_image_url, server_name, verified, activity_grade,
+                            profile_image_url, server_name, verified, activity_grade, arcana,
                             attempt_count, next_attempt_at, pending_since, created_at, updated_at
                         )
                         SELECT u.id, 1, 0, u.nickname,
                                u.profile_image_url, u.server_name, u.is_verified,
                                CASE WHEN u.is_verified = TRUE AND u.status = 'ACTIVE' THEN u.grade ELSE NULL END,
+                               p.arcana,
                                0, UTC_TIMESTAMP(6), UTC_TIMESTAMP(6),
                                UTC_TIMESTAMP(6), UTC_TIMESTAMP(6)
                         FROM users u
+                        LEFT JOIN user_game_profile p ON p.user_id = u.id
                         LEFT JOIN user_info_outbox o ON o.user_id = u.id
                         WHERE o.user_id IS NULL
                         ORDER BY u.id

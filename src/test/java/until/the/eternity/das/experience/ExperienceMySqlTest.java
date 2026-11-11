@@ -45,6 +45,7 @@ import until.the.eternity.das.user.outbox.UserInfoOutboxService;
     ExperienceQueryService.class,
     ExperienceOperations.class,
     UserInfoOutboxService.class,
+    until.the.eternity.das.user.outbox.UserInfoArcanaRefresh.class,
     ExperienceMySqlTest.Configuration.class
 })
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
@@ -79,6 +80,91 @@ class ExperienceMySqlTest {
     @Autowired UserRepository users;
     @Autowired TransactionTemplate transactions;
     @Autowired UserInfoOutboxService summaries;
+    @Autowired until.the.eternity.das.user.outbox.UserInfoArcanaRefresh arcanaRefresh;
+
+    @Test
+    void arcanaSnapshotsFollowProfileChangesAndClearWithoutChangingGrade() {
+        long member = user(true);
+        jdbc.update(
+                "INSERT INTO user_game_profile(user_id,arcana) VALUES (?, 'DARK_MAGE')", member);
+        freeze();
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT arcana FROM user_info_outbox WHERE user_id=?",
+                                String.class,
+                                member))
+                .isEqualTo("DARK_MAGE");
+        transactions.executeWithoutResult(
+                status -> {
+                    User user = users.findById(member).orElseThrow();
+                    jdbc.update(
+                            "UPDATE user_game_profile SET arcana='SAINT_BARD' WHERE user_id=?",
+                            member);
+                    summaries.enqueue(user);
+                });
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT arcana FROM user_info_outbox WHERE user_id=?",
+                                String.class,
+                                member))
+                .isEqualTo("SAINT_BARD");
+        transactions.executeWithoutResult(
+                status -> {
+                    jdbc.update("DELETE FROM user_game_profile WHERE user_id=?", member);
+                    summaries.enqueue(users.findById(member).orElseThrow());
+                });
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT arcana FROM user_info_outbox WHERE user_id=?",
+                                String.class,
+                                member))
+                .isNull();
+        assertThat(operations.reconcile().get("grade_mismatches")).hasToString("0");
+    }
+
+    @Test
+    void controlledArcanaRefreshReplaysAfterOldPublisherAckAndResumesWithoutDuplicates() {
+        long member = user(true);
+        long withoutProfile = user(false);
+        jdbc.update(
+                "INSERT INTO user_game_profile(user_id,arcana) VALUES (?, 'ELEMENTAL_KNIGHT')",
+                member);
+        freeze();
+        jdbc.update("UPDATE user_info_outbox SET published_revision=revision,arcana=NULL");
+        assertThat(arcanaRefresh.refresh(1)).isEqualTo(1);
+        assertThat(arcanaRefresh.refresh(1000)).isGreaterThanOrEqualTo(1);
+        long revision =
+                jdbc.queryForObject(
+                        "SELECT revision FROM user_info_outbox WHERE user_id=?",
+                        Long.class,
+                        member);
+        assertThat(arcanaRefresh.remaining()).isZero();
+        assertThat(arcanaRefresh.refresh(1000)).isZero();
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT revision FROM user_info_outbox WHERE user_id=?",
+                                Long.class,
+                                member))
+                .isEqualTo(revision);
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT arcana FROM user_info_outbox WHERE user_id=?",
+                                String.class,
+                                member))
+                .isEqualTo("ELEMENTAL_KNIGHT");
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT arcana FROM user_info_outbox WHERE user_id=?",
+                                String.class,
+                                withoutProfile))
+                .isNull();
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT revision>published_revision FROM user_info_outbox WHERE user_id=?",
+                                Boolean.class,
+                                member))
+                .isTrue();
+    }
 
     @Autowired
     until.the.eternity.das.verification.entity.UserVerificationHistoryRepository
@@ -323,6 +409,8 @@ class ExperienceMySqlTest {
         jdbc.update("DELETE FROM user_experience");
         jdbc.update("DELETE FROM user_info_outbox");
         jdbc.update("DELETE FROM user_verification_history");
+        jdbc.update(
+                "DELETE FROM user_game_profile WHERE user_id IN (SELECT id FROM users WHERE email LIKE 'xp-it-%')");
         jdbc.update("DELETE FROM users WHERE email LIKE 'xp-it-%'");
         jdbc.update("UPDATE experience_activity SET rollout_at = NULL");
     }

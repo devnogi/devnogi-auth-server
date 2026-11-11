@@ -1,5 +1,6 @@
 package until.the.eternity.das.user.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import until.the.eternity.das.experience.ActivityGrade;
 import until.the.eternity.das.user.entity.User;
 
@@ -10,7 +11,19 @@ public record UserInfoUpdateEvent(
         String serverName,
         boolean verified,
         Long revision,
-        ActivityGrade activityGrade) {
+        ActivityGrade activityGrade,
+        @JsonInclude(JsonInclude.Include.ALWAYS) String arcana) {
+    public UserInfoUpdateEvent(
+            Long id,
+            String nickname,
+            String profileImageUrl,
+            String serverName,
+            boolean verified,
+            Long revision,
+            ActivityGrade activityGrade) {
+        this(id, nickname, profileImageUrl, serverName, verified, revision, activityGrade, null);
+    }
+
     public UserInfoUpdateEvent(
             Long id,
             String nickname,

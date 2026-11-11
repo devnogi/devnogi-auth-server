@@ -41,6 +41,14 @@ public class UserInfoOutboxService {
         Optional<UserInfoOutbox> existing = outboxes.findByUserIdForUpdate(user.getId());
         UserInfoOutbox outbox = existing.orElseGet(() -> UserInfoOutbox.first(user, now));
         existing.ifPresent(value -> value.replaceWith(user, now));
+        var arcanas =
+                entityManager
+                        .createNativeQuery(
+                                "SELECT arcana FROM user_game_profile WHERE user_id = :id FOR UPDATE",
+                                String.class)
+                        .setParameter("id", user.getId())
+                        .getResultList();
+        outbox.updateArcana(arcanas.isEmpty() ? null : (String) arcanas.getFirst());
         outboxes.save(outbox);
         return outbox.getRevision();
     }

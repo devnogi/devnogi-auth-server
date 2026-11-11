@@ -45,6 +45,16 @@ public class UserInfoOutbox {
     @Enumerated(EnumType.STRING)
     private ActivityGrade activityGrade;
 
+    @Column(length = 32)
+    private String arcana;
+
+    @Column(name = "arcana_refreshed", nullable = false)
+    private boolean arcanaRefreshed;
+
+    public void updateArcana(String value) {
+        arcana = value;
+    }
+
     @Column(name = "attempt_count", nullable = false)
     private int attemptCount;
 
@@ -105,7 +115,8 @@ public class UserInfoOutbox {
                         serverName,
                         verified,
                         revision,
-                        activityGrade));
+                        activityGrade,
+                        arcana));
     }
 
     private void copySnapshot(User user) {
