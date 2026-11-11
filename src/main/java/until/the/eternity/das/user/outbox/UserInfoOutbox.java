@@ -2,12 +2,15 @@ package until.the.eternity.das.user.outbox;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import until.the.eternity.das.experience.ActivityGrade;
 import until.the.eternity.das.user.dto.response.UserInfoUpdateEvent;
 import until.the.eternity.das.user.entity.User;
 
@@ -37,6 +40,10 @@ public class UserInfoOutbox {
 
     @Column(nullable = false)
     private boolean verified;
+
+    @Column(name = "activity_grade", length = 32)
+    @Enumerated(EnumType.STRING)
+    private ActivityGrade activityGrade;
 
     @Column(name = "attempt_count", nullable = false)
     private int attemptCount;
@@ -92,7 +99,13 @@ public class UserInfoOutbox {
                 attemptCount,
                 token,
                 new UserInfoUpdateEvent(
-                        userId, nickname, profileImageUrl, serverName, verified, revision));
+                        userId,
+                        nickname,
+                        profileImageUrl,
+                        serverName,
+                        verified,
+                        revision,
+                        activityGrade));
     }
 
     private void copySnapshot(User user) {
@@ -100,5 +113,6 @@ public class UserInfoOutbox {
         profileImageUrl = user.getProfileImageUrl();
         serverName = user.getServerName();
         verified = user.isVerified();
+        activityGrade = user.visibleActivityGrade();
     }
 }

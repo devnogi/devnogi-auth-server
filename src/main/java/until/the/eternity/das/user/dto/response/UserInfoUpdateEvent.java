@@ -1,5 +1,6 @@
 package until.the.eternity.das.user.dto.response;
 
+import until.the.eternity.das.experience.ActivityGrade;
 import until.the.eternity.das.user.entity.User;
 
 public record UserInfoUpdateEvent(
@@ -8,7 +9,18 @@ public record UserInfoUpdateEvent(
         String profileImageUrl,
         String serverName,
         boolean verified,
-        Long revision) {
+        Long revision,
+        ActivityGrade activityGrade) {
+    public UserInfoUpdateEvent(
+            Long id,
+            String nickname,
+            String profileImageUrl,
+            String serverName,
+            boolean verified,
+            Long revision) {
+        this(id, nickname, profileImageUrl, serverName, verified, revision, null);
+    }
+
     public UserInfoUpdateEvent(
             Long id, String nickname, String profileImageUrl, String serverName, boolean verified) {
         this(id, nickname, profileImageUrl, serverName, verified, null);
@@ -25,6 +37,7 @@ public record UserInfoUpdateEvent(
                 user.getProfileImageUrl(),
                 user.getServerName(),
                 user.isVerified(),
-                revision);
+                revision,
+                user.visibleActivityGrade());
     }
 }

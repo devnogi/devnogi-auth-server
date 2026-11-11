@@ -1,0 +1,15 @@
+{
+  "eventId": "2ce1b7c0-8712-4cc2-a77f-9f4807c6a001",
+  "schemaVersion": 1,
+  "activityKey": "COMMENT:101:LIKE:20",
+  "activityType": "LIKE",
+  "actorUserId": 20,
+  "authorUserId": 10,
+  "targetType": "COMMENT",
+  "targetId": 101,
+  "rootTargetType": "POST",
+  "rootTargetId": 50,
+  "active": true,
+  "sourceRevision": 123,
+  "occurredAt": "2026-11-11T09:00:00Z"
+}

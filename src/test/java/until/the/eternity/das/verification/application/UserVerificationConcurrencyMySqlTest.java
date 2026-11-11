@@ -139,6 +139,10 @@ class UserVerificationConcurrencyMySqlTest {
                                 Integer.class,
                                 userId));
                 assertEquals(
+                        "APPRENTICE",
+                        jdbc.queryForObject(
+                                "SELECT grade FROM users WHERE id=?", String.class, userId));
+                assertEquals(
                         1,
                         jdbc.queryForObject(
                                 "SELECT count(*) FROM user_verification_history WHERE user_id=? AND verification_success=true",

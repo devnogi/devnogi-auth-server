@@ -46,6 +46,9 @@ import until.the.eternity.das.common.exception.GlobalExceptionCode;
 import until.the.eternity.das.common.filter.UserAuthenticationFilter;
 import until.the.eternity.das.common.util.CookieUtil;
 import until.the.eternity.das.common.util.JwtUtil;
+import until.the.eternity.das.experience.ActivityGrade;
+import until.the.eternity.das.experience.ExperienceController;
+import until.the.eternity.das.experience.ExperienceQueryService;
 import until.the.eternity.das.oauth.handler.OAuth2SuccessHandler;
 import until.the.eternity.das.oauth.service.CustomOAuth2UserService;
 import until.the.eternity.das.oauth.service.OAuthExchangeService;
@@ -68,6 +71,7 @@ import until.the.eternity.das.user.presentation.UserController;
         controllers = {
             AuthController.class,
             UserController.class,
+            ExperienceController.class,
             UserSearchController.class,
             EmailLoginContractTest.MetricsController.class,
             EmailLoginContractTest.HealthController.class
@@ -112,6 +116,7 @@ class EmailLoginContractTest {
     @MockitoBean private SocialAuthService socialAuthService;
     @MockitoBean private OAuthExchangeService oauthExchangeService;
     @MockitoBean private UserService userService;
+    @MockitoBean private ExperienceQueryService experienceQueries;
     @MockitoBean private UserSearchService userSearchService;
     @MockitoBean private NicknameCandidateService nicknameCandidateService;
     @MockitoBean private UserRepository users;
@@ -119,6 +124,40 @@ class EmailLoginContractTest {
     @MockitoBean private OAuth2SuccessHandler oauthSuccess;
     private JsonNode contract;
     private User user;
+
+    @Test
+    void experienceAndHistoryRequireAuthenticationAndUseOnlyPrincipalIdentity() throws Exception {
+        mvc.perform(get("/api/user/experience")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/user/experience/history")).andExpect(status().isUnauthorized());
+        verifyNoInteractions(experienceQueries);
+        when(experienceQueries.summary(1L))
+                .thenReturn(
+                        new ExperienceQueryService.Summary(
+                                true,
+                                ActivityGrade.SENIOR,
+                                45,
+                                45,
+                                ActivityGrade.EXPERT,
+                                250L,
+                                205,
+                                0,
+                                ActivityGrade.thresholds()));
+        when(experienceQueries.history(1L, null, 20))
+                .thenReturn(new ExperienceQueryService.History(List.of(), null));
+        mvc.perform(get("/api/user/experience").cookie(accessCookie()).param("userId", "999"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.activityGrade").value("SENIOR"))
+                .andExpect(jsonPath("$.data.totalXp").value(45));
+        mvc.perform(
+                        get("/api/user/experience/history")
+                                .cookie(accessCookie())
+                                .param("userId", "999"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items").isEmpty());
+        verify(experienceQueries).summary(1L);
+        verify(experienceQueries).history(1L, null, 20);
+        verifyNoMoreInteractions(experienceQueries);
+    }
 
     @BeforeEach
     void fixtures() throws Exception {
@@ -384,7 +423,8 @@ class EmailLoginContractTest {
                                 "ELEMENTAL_KNIGHT",
                                 List.of("255.128.0"),
                                 "INFP",
-                                "소개"));
+                                "소개",
+                                until.the.eternity.das.experience.ActivityGrade.APPRENTICE));
 
         MvcResult result =
                 mvc.perform(get("/api/user/public/7/profile"))

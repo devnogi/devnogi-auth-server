@@ -6,10 +6,12 @@ import static org.mockito.Mockito.when;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
+import jakarta.persistence.Query;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Optional;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -20,7 +22,15 @@ import until.the.eternity.das.user.entity.User;
 class UserInfoOutboxServiceTest {
     @Mock UserInfoOutboxRepository outboxes;
     @Mock EntityManager entityManager;
+    @Mock Query gradeQuery;
     Clock clock = Clock.fixed(Instant.parse("2026-11-05T09:00:00Z"), ZoneOffset.UTC);
+
+    @BeforeEach
+    void persistedGradeQuery() {
+        when(entityManager.createNativeQuery("SELECT grade FROM users WHERE id = :id FOR UPDATE"))
+                .thenReturn(gradeQuery);
+        when(gradeQuery.setParameter("id", 42L)).thenReturn(gradeQuery);
+    }
 
     @Test
     void firstSnapshotStartsAtRevisionOne() {

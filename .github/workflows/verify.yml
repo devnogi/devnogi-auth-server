@@ -34,3 +34,30 @@ jobs:
       service-name: auth
       dockerfile: Dockerfile
       compose-file: docker-compose-auth-prod.yml
+
+  experience-mysql:
+    needs: workflow-contract
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0.42
+        env:
+          MYSQL_ROOT_PASSWORD: synthetic-experience-test-only
+          MYSQL_DATABASE: auth
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping --host=127.0.0.1 --user=root --password=synthetic-experience-test-only"
+          --health-interval=5s --health-timeout=5s --health-retries=30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Verify experience ledger on real MySQL
+        env:
+          EXPERIENCE_MYSQL_REQUIRED: 'true'
+          EXPERIENCE_MYSQL_URL: jdbc:mysql://127.0.0.1:3306/auth?useSSL=false&allowPublicKeyRetrieval=true
+          EXPERIENCE_MYSQL_USER: root
+          EXPERIENCE_MYSQL_PASSWORD: synthetic-experience-test-only
+        run: bash gradlew test --tests '*ExperienceMySqlTest' --no-daemon --max-workers=2
