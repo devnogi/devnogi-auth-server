@@ -490,6 +490,11 @@ components:
                 eligible: {type: boolean}
                 activityGrade: {$ref: '#/components/schemas/ActivityGrade'}
                 totalXp: {type: integer, format: int64, minimum: 0}
+                currentXp: {type: integer, format: int64, minimum: 0, description: Activity XP minus net advertising spending, floored at zero.}
+                spentXp: {type: integer, format: int64, minimum: 0}
+                reservedXp: {type: integer, format: int64, minimum: 0}
+                availableXp: {type: integer, format: int64, minimum: 0}
+                deficitXp: {type: integer, format: int64, minimum: 0}
                 currentGradeMinXp: {type: integer, format: int64}
                 nextGrade: {$ref: '#/components/schemas/ActivityGrade'}
                 nextGradeMinXp: {type: integer, format: int64, nullable: true}

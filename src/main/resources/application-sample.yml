@@ -120,8 +120,8 @@ spring:
         path-style-access-enabled: true
   servlet:
     multipart:
-      max-file-size: 5MB
-      max-request-size: 5MB
+      max-file-size: 10MB
+      max-request-size: 12MB
 
 jwt:
   secret-key: ${JWT_SECRET_KEY}

@@ -102,6 +102,11 @@ public class SecurityConfig {
                                 .requestMatchers(
                                         HttpMethod.GET, "/api/user/public/{userId}/profile")
                                 .permitAll()
+                                .requestMatchers(
+                                        HttpMethod.GET, "/api/hero", "/api/hero/auctions/current")
+                                .permitAll()
+                                .requestMatchers("/api/admin/hero/**")
+                                .hasAnyRole("ADMIN", "SUPER_ADMIN")
                                 .requestMatchers("/api/admin/")
                                 .hasAnyRole("ADMIN", "SUPER_ADMIN")
                                 .requestMatchers("/oauth2/**", "/login/oauth2/**")

@@ -20,32 +20,34 @@ import until.the.eternity.das.user.entity.enums.Status;
 public class ExperienceQueryService {
     private final JdbcTemplate jdbc;
     private final UserRepository users;
+    private final ExperienceWalletService wallet;
 
     public Summary summary(Long userId) {
         User user = requireUser(userId);
-        List<Long> totals =
-                jdbc.query(
-                        "SELECT total_xp FROM user_experience WHERE user_id = ?",
-                        (rs, row) -> rs.getLong(1),
-                        userId);
-        long total = totals.isEmpty() ? 0 : totals.getFirst();
-        ActivityGrade grade = ActivityGrade.fromXp(total);
+        ExperienceWalletService.Snapshot balance = wallet.snapshot(userId);
+        long current = balance.currentXp();
+        ActivityGrade grade = ActivityGrade.fromXp(current);
         ActivityGrade next = grade.next();
         boolean eligible = user.isVerified() && user.getStatus() == Status.ACTIVE;
         double progress =
                 next == null
                         ? 100
-                        : 100.0 * (total - grade.minXp()) / (next.minXp() - grade.minXp());
+                        : 100.0 * (current - grade.minXp()) / (next.minXp() - grade.minXp());
         return new Summary(
                 eligible,
                 eligible ? grade : null,
-                total,
+                balance.activityXp(),
                 grade.minXp(),
                 next,
                 next == null ? null : next.minXp(),
-                next == null ? 0 : next.minXp() - total,
+                next == null ? 0 : next.minXp() - current,
                 progress,
-                ActivityGrade.thresholds());
+                ActivityGrade.thresholds(),
+                current,
+                balance.spentXp(),
+                balance.reservedXp(),
+                balance.availableXp(),
+                balance.deficitXp());
     }
 
     public History history(Long userId, Long cursor, int size) {
@@ -96,7 +98,12 @@ public class ExperienceQueryService {
             Long nextGradeMinXp,
             long xpToNextGrade,
             double progressPercent,
-            List<ActivityGrade.Threshold> grades) {}
+            List<ActivityGrade.Threshold> grades,
+            long currentXp,
+            long spentXp,
+            long reservedXp,
+            long availableXp,
+            long deficitXp) {}
 
     public record HistoryItem(
             long id,

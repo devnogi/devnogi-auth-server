@@ -1,0 +1,114 @@
+[
+  {
+    "url": "",
+    "valid": true
+  },
+  {
+    "url": "https://www.memonogi.com",
+    "valid": true
+  },
+  {
+    "url": "https://guild.memonogi.com/path?q=1#top",
+    "valid": true
+  },
+  {
+    "url": "HTTPS://WWW.MEMONOGI.COM:443/a",
+    "valid": true
+  },
+  {
+    "url": "https://a.b.memonogi.com/길드",
+    "valid": true
+  },
+  {
+    "url": "https://www.memonogi.com/a%20b",
+    "valid": true
+  },
+  {
+    "url": " ",
+    "valid": false
+  },
+  {
+    "url": "http://www.memonogi.com",
+    "valid": false
+  },
+  {
+    "url": "https://memonogi.com",
+    "valid": false
+  },
+  {
+    "url": "/guilds",
+    "valid": false
+  },
+  {
+    "url": "//www.memonogi.com",
+    "valid": false
+  },
+  {
+    "url": "https://memonogi.com.evil.com",
+    "valid": false
+  },
+  {
+    "url": "https://evil-memonogi.com",
+    "valid": false
+  },
+  {
+    "url": "https://www.memonogi.com@evil.com",
+    "valid": false
+  },
+  {
+    "url": "https://@www.memonogi.com",
+    "valid": false
+  },
+  {
+    "url": "https://user:password@www.memonogi.com",
+    "valid": false
+  },
+  {
+    "url": "https://www.memonogi.com:444",
+    "valid": false
+  },
+  {
+    "url": "https://www.memonogi.com.",
+    "valid": false
+  },
+  {
+    "url": "https://-bad.memonogi.com",
+    "valid": false
+  },
+  {
+    "url": "https://bad_.memonogi.com",
+    "valid": false
+  },
+  {
+    "url": "https://www..memonogi.com",
+    "valid": false
+  },
+  {
+    "url": "https://한글.memonogi.com",
+    "valid": false
+  },
+  {
+    "url": "https://%77ww.memonogi.com",
+    "valid": false
+  },
+  {
+    "url": "https://www.memonogi.com/%zz",
+    "valid": false
+  },
+  {
+    "url": "https://www.memonogi.com/%",
+    "valid": false
+  },
+  {
+    "url": "https://www.memonogi.com\\@evil.com",
+    "valid": false
+  },
+  {
+    "url": "https://www.memonogi.com/\nfoo",
+    "valid": false
+  },
+  {
+    "url": "https://www.memonogi.com/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "valid": false
+  }
+]

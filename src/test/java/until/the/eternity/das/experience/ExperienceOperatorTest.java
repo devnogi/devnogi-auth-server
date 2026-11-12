@@ -31,4 +31,23 @@ class ExperienceOperatorTest {
         assertThatThrownBy(() -> operator.run(new DefaultApplicationArguments()))
                 .isInstanceOf(IllegalStateException.class);
     }
+
+    @Test
+    void advertisingMismatchAlsoBlocksActivation() {
+        ExperienceOperations operations = mock(ExperienceOperations.class);
+        when(operations.reconcile())
+                .thenReturn(
+                        Map.of(
+                                "ledger_mismatches",
+                                0L,
+                                "grade_mismatches",
+                                0L,
+                                "reservation_mismatches",
+                                1L));
+        var operator =
+                new ExperienceOperator(
+                        operations, mock(ConfigurableApplicationContext.class), "reconcile", "");
+        assertThatThrownBy(() -> operator.run(new DefaultApplicationArguments()))
+                .isInstanceOf(IllegalStateException.class);
+    }
 }

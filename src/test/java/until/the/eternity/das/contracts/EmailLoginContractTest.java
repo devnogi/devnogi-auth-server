@@ -141,13 +141,22 @@ class EmailLoginContractTest {
                                 250L,
                                 205,
                                 0,
-                                ActivityGrade.thresholds()));
+                                ActivityGrade.thresholds(),
+                                45,
+                                0,
+                                0,
+                                45,
+                                0));
         when(experienceQueries.history(1L, null, 20))
                 .thenReturn(new ExperienceQueryService.History(List.of(), null));
         mvc.perform(get("/api/user/experience").cookie(accessCookie()).param("userId", "999"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.activityGrade").value("SENIOR"))
-                .andExpect(jsonPath("$.data.totalXp").value(45));
+                .andExpect(jsonPath("$.data.totalXp").value(45))
+                .andExpect(jsonPath("$.data.currentXp").value(45))
+                .andExpect(jsonPath("$.data.reservedXp").value(0))
+                .andExpect(jsonPath("$.data.availableXp").value(45))
+                .andExpect(jsonPath("$.data.deficitXp").value(0));
         mvc.perform(
                         get("/api/user/experience/history")
                                 .cookie(accessCookie())
