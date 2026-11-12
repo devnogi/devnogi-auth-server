@@ -54,9 +54,12 @@ public class ExperienceOperations {
         jdbc.update(
                 """
                 UPDATE users u JOIN user_experience e ON e.user_id = u.id
-                SET u.grade = CASE WHEN e.total_xp >= 5000 THEN 'GRANDMASTER'
-                  WHEN e.total_xp >= 2500 THEN 'MASTER' WHEN e.total_xp >= 1000 THEN 'CHAMPION'
-                  WHEN e.total_xp >= 250 THEN 'EXPERT' WHEN e.total_xp >= 45 THEN 'SENIOR'
+                LEFT JOIN (SELECT user_id, SUM(amount) AS spent FROM hero_charge GROUP BY user_id) c ON c.user_id = u.id
+                SET u.grade = CASE WHEN e.total_xp - COALESCE(c.spent, 0) >= 5000 THEN 'GRANDMASTER'
+                  WHEN e.total_xp - COALESCE(c.spent, 0) >= 2500 THEN 'MASTER'
+                  WHEN e.total_xp - COALESCE(c.spent, 0) >= 1000 THEN 'CHAMPION'
+                  WHEN e.total_xp - COALESCE(c.spent, 0) >= 250 THEN 'EXPERT'
+                  WHEN e.total_xp - COALESCE(c.spent, 0) >= 45 THEN 'SENIOR'
                   ELSE 'APPRENTICE' END
                 WHERE u.is_verified = TRUE AND u.status = 'ACTIVE'
                 """);
@@ -103,20 +106,55 @@ public class ExperienceOperations {
 
     @Transactional(readOnly = true)
     public Map<String, Object> reconcile() {
-        return jdbc.queryForMap(
-                """
+        Map<String, Object> result =
+                new java.util.LinkedHashMap<>(
+                        jdbc.queryForMap(
+                                """
                 SELECT COUNT(*) AS users_checked,
                   COALESCE(SUM(COALESCE(e.total_xp, 0) <> COALESCE(h.total, 0)), 0) AS ledger_mismatches,
                   COALESCE(SUM((u.grade IS NULL AND (COALESCE(e.total_xp, 0) > 0 OR u.is_verified = TRUE))
                     OR (u.grade IS NOT NULL AND u.grade <> CASE
-                    WHEN COALESCE(e.total_xp, 0) >= 5000 THEN 'GRANDMASTER'
-                    WHEN COALESCE(e.total_xp, 0) >= 2500 THEN 'MASTER'
-                    WHEN COALESCE(e.total_xp, 0) >= 1000 THEN 'CHAMPION'
-                    WHEN COALESCE(e.total_xp, 0) >= 250 THEN 'EXPERT'
-                    WHEN COALESCE(e.total_xp, 0) >= 45 THEN 'SENIOR' ELSE 'APPRENTICE' END)), 0) AS grade_mismatches
+                    WHEN COALESCE(e.total_xp, 0) - COALESCE(c.spent, 0) >= 5000 THEN 'GRANDMASTER'
+                    WHEN COALESCE(e.total_xp, 0) - COALESCE(c.spent, 0) >= 2500 THEN 'MASTER'
+                    WHEN COALESCE(e.total_xp, 0) - COALESCE(c.spent, 0) >= 1000 THEN 'CHAMPION'
+                    WHEN COALESCE(e.total_xp, 0) - COALESCE(c.spent, 0) >= 250 THEN 'EXPERT'
+                    WHEN COALESCE(e.total_xp, 0) - COALESCE(c.spent, 0) >= 45 THEN 'SENIOR' ELSE 'APPRENTICE' END)), 0) AS grade_mismatches
                 FROM users u LEFT JOIN user_experience e ON e.user_id = u.id
+                LEFT JOIN (SELECT user_id, SUM(amount) AS spent FROM hero_charge GROUP BY user_id) c ON c.user_id = u.id
                 LEFT JOIN (SELECT user_id, SUM(delta_xp) AS total FROM user_experience_history GROUP BY user_id) h
                   ON h.user_id = u.id
-                """);
+                """));
+        result.put(
+                "negative_advertising_balances",
+                jdbc.queryForObject(
+                        "SELECT COUNT(*) FROM (SELECT user_id FROM hero_charge GROUP BY user_id HAVING SUM(amount) < 0) invalid",
+                        Long.class));
+        result.put(
+                "reservation_mismatches",
+                jdbc.queryForObject(
+                        """
+                SELECT COUNT(*) FROM hero_auction a
+                LEFT JOIN hero_bid b ON b.id = a.highest_bid_id
+                LEFT JOIN hero_reservation r ON r.auction_id = a.id
+                WHERE (a.status = 'OPEN' AND b.status = 'LEADING'
+                  AND (r.auction_id IS NULL OR r.user_id <> b.user_id OR r.amount <> b.amount))
+                  OR (r.auction_id IS NOT NULL AND
+                    (a.status <> 'OPEN' OR b.id IS NULL OR b.status <> 'LEADING'))
+                """,
+                        Long.class));
+        result.put(
+                "payment_mismatches",
+                jdbc.queryForObject(
+                        """
+                SELECT COUNT(*) FROM hero_charge c
+                LEFT JOIN hero_auction a ON a.id = c.auction_id
+                LEFT JOIN hero_bid b ON b.id = a.winning_bid_id
+                LEFT JOIN hero_charge original ON original.auction_id = c.auction_id AND original.kind = 'CHARGE'
+                WHERE (c.kind = 'CHARGE' AND (b.id IS NULL OR c.amount <> b.amount OR c.user_id <> b.user_id))
+                  OR (c.kind = 'REFUND' AND (original.id IS NULL OR c.amount <> -original.amount
+                    OR c.user_id <> original.user_id))
+                """,
+                        Long.class));
+        return result;
     }
 }

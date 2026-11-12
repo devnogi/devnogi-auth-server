@@ -42,6 +42,7 @@ import until.the.eternity.das.user.outbox.UserInfoOutboxService;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({
     ExperienceService.class,
+    ExperienceWalletService.class,
     ExperienceQueryService.class,
     ExperienceOperations.class,
     UserInfoOutboxService.class,

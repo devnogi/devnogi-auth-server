@@ -14,7 +14,6 @@ import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import until.the.eternity.das.user.entity.User;
 import until.the.eternity.das.user.entity.enums.Status;
-import until.the.eternity.das.user.outbox.UserInfoOutboxService;
 
 /** One ledger transaction for an activity state, including both sides of a like. */
 @Service
@@ -22,7 +21,7 @@ import until.the.eternity.das.user.outbox.UserInfoOutboxService;
 public class ExperienceService {
     private final JdbcTemplate jdbc;
     private final EntityManager entityManager;
-    private final UserInfoOutboxService summaries;
+    private final ExperienceWalletService wallet;
     private final Clock clock;
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
@@ -134,15 +133,7 @@ public class ExperienceService {
                 historical,
                 now,
                 user.getId());
-        // Never-verified users retain NULL. Reversals still update a previously initialized grade.
-        if (user.getGrade() != null || user.isVerified() || total > 0) {
-            ActivityGrade grade = ActivityGrade.fromXp(total);
-            if (grade != user.getGrade()) {
-                jdbc.update("UPDATE users SET grade = ? WHERE id = ?", grade.name(), user.getId());
-                user.updateActivityGrade(grade);
-                summaries.enqueue(user);
-            }
-        }
+        wallet.recomputeGrade(user);
     }
 
     private boolean verifiedAt(User user, LocalDateTime occurred) {

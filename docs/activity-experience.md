@@ -98,3 +98,24 @@ two-sided likes, reversal/demotion, frozen cohort, atomic rollback, private
 cursor pagination and hidden verification baselines. CI provisions a dedicated
 MySQL service for this suite. Cross-service Kafka redelivery and rendered UI
 evidence are tracked in the workspace feature review.
+
+## Advertising consumption (Hero v1)
+
+`user_experience.total_xp` and the activity history keep their activity-only meaning.
+`hero_charge` is an immutable signed debit/refund ledger; `hero_reservation` contains
+only active highest-bid holds. `ExperienceWalletService` derives current XP as
+`max(0, activity - net spending)`, available XP after holds, and a persisted-by-ledger
+deficit when activity is reversed after spending. New earnings first repay that
+deficit. Holds do not change grade; debit/refund and subsequent activity changes do.
+
+Summary JSON preserves `totalXp` and adds `currentXp`, `spentXp`, `reservedXp`,
+`availableXp`, `deficitXp`. Grade and progression are based on current XP. Advertising
+transactions are separately available in `/api/user/hero/auctions`; activity history
+does not mix payment entries into activity policy rows. Community's existing summary
+outbox contract is unchanged. Reconciliation now checks consumption-adjusted grade,
+negative net spending, reservation versus leading bid, and payment/refund correspondence.
+Any mismatch fails the reconciliation operator command before activation.
+
+See [approved plan](hero-plan.md) and [HTTP contract](hero-api.md). CI also executes
+`HeroMySqlTest` against the same dedicated MySQL service, sequentially with the XP
+suite. No real account, production storage or production database is used in tests.

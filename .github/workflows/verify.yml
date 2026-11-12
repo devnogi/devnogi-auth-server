@@ -54,10 +54,10 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - name: Verify experience ledger on real MySQL
+      - name: Verify experience ledger and Hero auctions on real MySQL
         env:
           EXPERIENCE_MYSQL_REQUIRED: 'true'
           EXPERIENCE_MYSQL_URL: jdbc:mysql://127.0.0.1:3306/auth?useSSL=false&allowPublicKeyRetrieval=true
           EXPERIENCE_MYSQL_USER: root
           EXPERIENCE_MYSQL_PASSWORD: synthetic-experience-test-only
-        run: bash gradlew test --tests '*ExperienceMySqlTest' --no-daemon --max-workers=2
+        run: bash gradlew test --tests '*ExperienceMySqlTest' --tests '*HeroMySqlTest' --no-daemon --max-workers=2

@@ -8,7 +8,7 @@ plugins {
 }
 
 group = "until.the.eternity"
-version = "1.0.12-SNAPSHOT"
+version = "1.0.13-SNAPSHOT"
 java.sourceCompatibility = JavaVersion.VERSION_21
 
 repositories {

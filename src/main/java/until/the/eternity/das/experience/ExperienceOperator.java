@@ -48,8 +48,13 @@ public class ExperienceOperator implements ApplicationRunner {
         log.info("Experience operator action={} result={}", action, result);
         if ("reconcile".equals(action)
                 && result instanceof java.util.Map<?, ?> values
-                && (((Number) values.get("ledger_mismatches")).longValue() != 0
-                        || ((Number) values.get("grade_mismatches")).longValue() != 0)) {
+                && values.entrySet().stream()
+                        .anyMatch(
+                                entry ->
+                                        (entry.getKey().toString().endsWith("mismatches")
+                                                        || "negative_advertising_balances"
+                                                                .equals(entry.getKey()))
+                                                && ((Number) entry.getValue()).longValue() != 0)) {
             throw new IllegalStateException(
                     "Experience reconciliation failed; do not expose the feature");
         }
