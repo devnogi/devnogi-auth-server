@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -17,11 +18,12 @@ import until.the.eternity.das.hero.HeroModels.*;
 @RequiredArgsConstructor
 public class HeroContentService {
     private final HeroRepository repo;
+    private final JdbcTemplate jdbc;
     private final HeroMedia media;
     private final Clock clock;
 
     public List<Slide> slides() {
-        return repo.jdbc.query(
+        return jdbc.query(
                 "SELECT * FROM hero_slide WHERE deleted_at IS NULL ORDER BY position,id",
                 HeroRepository::slide);
     }
@@ -36,7 +38,7 @@ public class HeroContentService {
         link = HeroValidation.link(link);
         HeroValidation.period(start, end);
         String imageUrl = media.upload(image);
-        repo.jdbc.update(
+        jdbc.update(
                 "INSERT INTO hero_slide(image_url,alt_text,link_url,position,starts_at,ends_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)",
                 imageUrl,
                 alt,
@@ -66,7 +68,7 @@ public class HeroContentService {
         link = HeroValidation.link(link);
         HeroValidation.period(start, end);
         String url = image == null ? old.imageUrl() : media.upload(image);
-        repo.jdbc.update(
+        jdbc.update(
                 "UPDATE hero_slide SET image_url=?,alt_text=?,link_url=?,starts_at=?,ends_at=?,updated_at=? WHERE id=?",
                 url,
                 alt,
@@ -84,7 +86,7 @@ public class HeroContentService {
         lockSettings();
         slide(id);
         if (slides().size() <= 1) throw HeroException.conflict("마지막 기본 이미지는 삭제할 수 없습니다.");
-        repo.jdbc.update(
+        jdbc.update(
                 "UPDATE hero_slide SET deleted_at=?,updated_at=? WHERE id=?",
                 time(clock.instant()),
                 time(clock.instant()),
@@ -101,7 +103,7 @@ public class HeroContentService {
                 || !new HashSet<>(ids).equals(new HashSet<>(existing)))
             throw HeroException.invalid("모든 기본 이미지의 순서를 지정해 주세요.");
         for (int i = 0; i < ids.size(); i++)
-            repo.jdbc.update(
+            jdbc.update(
                     "UPDATE hero_slide SET position=?,updated_at=? WHERE id=?",
                     i + 1,
                     time(clock.instant()),
@@ -113,7 +115,7 @@ public class HeroContentService {
         List<Slide> defaults =
                 slides().stream().filter(s -> active(at, s.startsAt(), s.endsAt())).toList();
         List<Slide> ads =
-                repo.jdbc.query(
+                jdbc.query(
                         """
                 SELECT p.auction_id AS id,c.image_url,c.alt_text,c.link_url,p.slot,p.starts_at,p.ends_at
                 FROM hero_placement p JOIN hero_bid b ON b.id=p.bid_id JOIN hero_creative c ON c.id=b.creative_id
@@ -166,7 +168,7 @@ public class HeroContentService {
             if (s.endsAt() != null && s.endsAt().isAfter(at)) boundaries.add(s.endsAt());
         }
         boundaries.addAll(
-                repo.jdbc.query(
+                jdbc.query(
                         "SELECT starts_at AS boundary FROM hero_placement WHERE stopped_at IS NULL AND starts_at>? UNION ALL SELECT ends_at AS boundary FROM hero_placement WHERE stopped_at IS NULL AND ends_at>?",
                         (rs, row) -> HeroRepository.instant(rs, "boundary"),
                         time(at),
@@ -189,7 +191,7 @@ public class HeroContentService {
         alt = HeroValidation.text(alt);
         link = HeroValidation.link(link);
         String url = media.upload(image);
-        repo.jdbc.update(
+        jdbc.update(
                 "INSERT INTO hero_creative(user_id,image_url,alt_text,link_url,created_at) VALUES(?,?,?,?,?)",
                 user,
                 url,
@@ -201,7 +203,7 @@ public class HeroContentService {
 
     public List<Creative> creatives(Long user) {
         return user == null
-                ? repo.jdbc.query(
+                ? jdbc.query(
                         """
                         SELECT c.* FROM hero_creative c WHERE c.deleted_at IS NULL AND (
                           c.id IN (SELECT recent.id FROM (
@@ -214,7 +216,7 @@ public class HeroContentService {
                         """,
                         HeroRepository::creative,
                         time(clock.instant()))
-                : repo.jdbc.query(
+                : jdbc.query(
                         "SELECT * FROM hero_creative WHERE user_id=? AND deleted_at IS NULL ORDER BY id DESC LIMIT 100",
                         HeroRepository::creative,
                         user);
@@ -224,22 +226,19 @@ public class HeroContentService {
     public void deleteCreative(long user, long id) {
         // Lock the creative also taken by bidding, preventing a reference after deletion.
         List<Long> owners =
-                repo.jdbc.query(
+                jdbc.query(
                         "SELECT user_id FROM hero_creative WHERE id=? AND deleted_at IS NULL FOR UPDATE",
                         (rs, row) -> rs.getLong(1),
                         id);
         if (owners.isEmpty()) throw HeroException.missing();
         if (owners.getFirst() != user) throw HeroException.forbidden("본인의 소재만 삭제할 수 있습니다.");
-        if (repo.jdbc.queryForObject(
-                        "SELECT COUNT(*) FROM hero_bid WHERE creative_id=?", Long.class, id)
+        if (jdbc.queryForObject("SELECT COUNT(*) FROM hero_bid WHERE creative_id=?", Long.class, id)
                 > 0) throw HeroException.conflict("입찰에 사용한 소재는 삭제할 수 없습니다.");
-        repo.jdbc.update(
-                "UPDATE hero_creative SET deleted_at=? WHERE id=?", time(clock.instant()), id);
+        jdbc.update("UPDATE hero_creative SET deleted_at=? WHERE id=?", time(clock.instant()), id);
     }
 
     Creative creative(long id) {
-        return repo
-                .jdbc
+        return jdbc
                 .query("SELECT * FROM hero_creative WHERE id=?", HeroRepository::creative, id)
                 .stream()
                 .findFirst()
@@ -247,8 +246,7 @@ public class HeroContentService {
     }
 
     private Slide slide(long id) {
-        return repo
-                .jdbc
+        return jdbc
                 .query(
                         "SELECT * FROM hero_slide WHERE id=? AND deleted_at IS NULL",
                         HeroRepository::slide,
@@ -259,12 +257,11 @@ public class HeroContentService {
     }
 
     private void lockSettings() {
-        repo.jdbc.queryForObject(
-                "SELECT id FROM hero_settings WHERE id=1 FOR UPDATE", Integer.class);
+        jdbc.queryForObject("SELECT id FROM hero_settings WHERE id=1 FOR UPDATE", Integer.class);
     }
 
     void audit(long actor, String action, Long target, String detail) {
-        repo.jdbc.update(
+        jdbc.update(
                 "INSERT INTO hero_audit(actor_id,action,target_id,detail,created_at) VALUES(?,?,?,?,?)",
                 actor,
                 action,
