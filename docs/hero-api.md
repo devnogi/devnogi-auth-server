@@ -16,7 +16,7 @@ Mutations require existing Auth access-token cookie; admin requires ADMIN/SUPER_
 ## Public
 
 - GET `/api/hero` -> `{items:Slide[],nextChangeAt:string|null,serverTime:string}`; no-store.
-- GET `/api/hero/auctions/current` -> `{auctions:Auction[],serverTime:string,enabled:boolean}`. Returns current week two slots plus preceding week's pair (results/active placements). UI selects current week for bids. Initial enabled=false until explicit configuration and next Monday start.
+- GET `/api/hero/auctions/current` -> `{auctions:Auction[],serverTime:string,enabled:boolean,scheduledStartAt:string|null}`. Returns current week two slots plus preceding week's pair (results/active placements). UI selects current week for bids. Initial enabled=false until explicit configuration and next Monday start.
 
 ## User
 
@@ -34,7 +34,7 @@ Mutations require existing Auth access-token cookie; admin requires ADMIN/SUPER_
 - DELETE `/api/admin/hero/slides/{id}` -> null.
 - PUT `/api/admin/hero/slides/order` JSON `{ids:number[]}` -> null; exact permutation of all nondeleted slides.
 - GET `/api/admin/hero/preview?at=<ISO instant>` -> public Hero shape.
-- GET `/api/admin/hero/auctions` -> `{auctions:Auction[],serverTime:string,enabled:boolean}` (latest 26 weeks).
+- GET `/api/admin/hero/auctions` -> `{auctions:Auction[],serverTime:string,enabled:boolean,scheduledStartAt:string|null}` (latest 26 weeks).
 - GET `/api/admin/hero/creatives` -> Creative[] (latest 100 including blocked, plus every leading, scheduled and currently displayed creative regardless of age).
 - POST `/api/admin/hero/creatives/{id}/block` JSON `{reason:string}` -> null.
 - POST `/api/admin/hero/auctions/{id}/cancel` JSON `{reason:string}` -> null. Cancels both slots of that week, releases holds and refunds committed charges exactly once.
@@ -42,3 +42,7 @@ Mutations require existing Auth access-token cookie; admin requires ADMIN/SUPER_
 Hero images use existing public storage URL; seeded images use `/home-hero-library-v2.png` and `/home-hero-winter.png` on React origin. No arbitrary remote fetch API.
 
 Errors use CommonResponse `success:false`, `code:HERO_*`, Korean message. HTTP 400 invalid input; 403 eligibility/ownership; 404 missing; 409 state/price/balance/idempotency conflict.
+
+## Scheduled start contract (runtime fix revision 1)
+
+scheduledStartAt is the configured Asia/Seoul Monday midnight as UTC ISO timestamp only when configuration is enabled and that instant is still in the future. It is null when disabled or already started. The existing enabled field remains false before opening. Both current and admin auction responses use the same rule. Example: 2026-11-16 00:00 KST is 2026-11-15T15:00:00Z.

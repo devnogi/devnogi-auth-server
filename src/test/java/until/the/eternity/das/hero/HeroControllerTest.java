@@ -36,6 +36,46 @@ class HeroControllerTest {
     @MockitoBean OAuth2SuccessHandler success;
 
     @Test
+    void publicAuctionsSerializeScheduledKoreanStartAsUtc() throws Exception {
+        var response =
+                new HeroModels.Auctions(
+                        List.of(),
+                        Instant.parse("2026-11-12T00:00:00Z"),
+                        false,
+                        Instant.parse("2026-11-15T15:00:00Z"));
+        when(auctions.current()).thenReturn(response);
+        mvc.perform(get("/api/hero/auctions/current"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.enabled").value(false))
+                .andExpect(jsonPath("$.data.scheduledStartAt").value("2026-11-15T15:00:00Z"));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void adminAuctionsSerializeScheduledStartAndNullAfterOpening() throws Exception {
+        when(auctions.all())
+                .thenReturn(
+                        new HeroModels.Auctions(
+                                List.of(),
+                                Instant.parse("2026-11-12T00:00:00Z"),
+                                false,
+                                Instant.parse("2026-11-15T15:00:00Z")));
+        mvc.perform(get("/api/admin/hero/auctions"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.scheduledStartAt").value("2026-11-15T15:00:00Z"));
+        when(auctions.all())
+                .thenReturn(
+                        new HeroModels.Auctions(
+                                List.of(), Instant.parse("2026-11-15T15:00:00Z"), true, null));
+        mvc.perform(get("/api/admin/hero/auctions"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.enabled").value(true))
+                .andExpect(
+                        jsonPath("$.data.scheduledStartAt")
+                                .value(org.hamcrest.Matchers.nullValue()));
+    }
+
+    @Test
     @WithMockUser(roles = "USER")
     void bidAmountsCannotBeCoercedFromDecimalOrString() throws Exception {
         for (String amount : List.of("10.5", "\"10\"", "9223372036854775808")) {

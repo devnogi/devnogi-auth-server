@@ -14,7 +14,7 @@ import until.the.eternity.das.hero.HeroModels.*;
 @Repository
 @RequiredArgsConstructor
 public class HeroRepository {
-    final JdbcTemplate jdbc;
+    private final JdbcTemplate jdbc;
 
     static LocalDateTime time(Instant value) {
         return value == null ? null : LocalDateTime.ofInstant(value, ZoneOffset.UTC);

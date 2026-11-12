@@ -42,7 +42,11 @@ public final class HeroModels {
             Long winningBidId,
             String reason) {}
 
-    public record Auctions(List<Auction> auctions, Instant serverTime, boolean enabled) {}
+    public record Auctions(
+            List<Auction> auctions,
+            Instant serverTime,
+            boolean enabled,
+            Instant scheduledStartAt) {}
 
     public record Bid(
             long id,

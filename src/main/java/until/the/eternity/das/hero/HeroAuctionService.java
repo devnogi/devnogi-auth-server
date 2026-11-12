@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.TreeSet;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +30,7 @@ import until.the.eternity.das.user.entity.enums.Status;
 public class HeroAuctionService {
     static final ZoneId KOREA = ZoneId.of("Asia/Seoul");
     private final HeroRepository repo;
+    private final JdbcTemplate jdbc;
     private final EntityManager em;
     private final ExperienceWalletService wallet;
     private final HeroContentService content;
@@ -38,6 +40,7 @@ public class HeroAuctionService {
 
     public HeroAuctionService(
             HeroRepository repo,
+            JdbcTemplate jdbc,
             EntityManager em,
             ExperienceWalletService wallet,
             HeroContentService content,
@@ -45,6 +48,7 @@ public class HeroAuctionService {
             @Value("${hero.auctions.enabled:false}") boolean enabled,
             @Value("${hero.auctions.starts-on:}") String startsOn) {
         this.repo = repo;
+        this.jdbc = jdbc;
         this.em = em;
         this.wallet = wallet;
         this.content = content;
@@ -67,13 +71,19 @@ public class HeroAuctionService {
         return enabled && startsOn != null && !currentWeek().isBefore(startsOn);
     }
 
+    public Instant scheduledStartAt() {
+        if (!enabled || startsOn == null) return null;
+        Instant start = startsOn.atStartOfDay(KOREA).toInstant();
+        return clock.instant().isBefore(start) ? start : null;
+    }
+
     @Transactional
     public void createCurrentWeek() {
         lockCoordination();
         if (!enabled()) return;
         LocalDate week = currentWeek();
         Instant open = week.atStartOfDay(KOREA).toInstant();
-        repo.jdbc.update(
+        jdbc.update(
                 "INSERT IGNORE INTO hero_week(week_start,opens_at,closes_at,display_starts_at,display_ends_at) VALUES(?,?,?,?,?)",
                 week,
                 time(open),
@@ -82,12 +92,11 @@ public class HeroAuctionService {
                 time(week.plusWeeks(2).atStartOfDay(KOREA).toInstant()));
         lockWeek(week);
         for (int slot = 1; slot <= 2; slot++)
-            repo.jdbc.update(
-                    "INSERT IGNORE INTO hero_auction(week_start,slot) VALUES(?,?)", week, slot);
+            jdbc.update("INSERT IGNORE INTO hero_auction(week_start,slot) VALUES(?,?)", week, slot);
     }
 
     public List<LocalDate> pendingWeeks() {
-        return repo.jdbc.query(
+        return jdbc.query(
                 "SELECT week_start FROM hero_week WHERE status='OPEN' ORDER BY week_start",
                 (rs, row) -> rs.getDate(1).toLocalDate());
     }
@@ -99,14 +108,16 @@ public class HeroAuctionService {
                         currentWeek().minusWeeks(1),
                         currentWeek()),
                 clock.instant(),
-                enabled());
+                enabled(),
+                scheduledStartAt());
     }
 
     public Auctions all() {
         return new Auctions(
                 repo.auctions("ORDER BY a.week_start DESC,a.slot LIMIT 52"),
                 clock.instant(),
-                enabled());
+                enabled(),
+                scheduledStartAt());
     }
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
@@ -126,7 +137,7 @@ public class HeroAuctionService {
         if (auction.highestBidderId() != null) ids.add(auction.highestBidderId());
         Map<Long, User> users = lockUsers(ids);
         List<Bid> previous =
-                repo.jdbc.query(
+                jdbc.query(
                         "SELECT * FROM hero_bid WHERE user_id=? AND idempotency_key=?",
                         HeroRepository::bid,
                         userId,
@@ -151,7 +162,7 @@ public class HeroAuctionService {
         if (request.amount() <= auction.highestBid())
             throw HeroException.conflict("현재 최고가보다 높은 금액을 입력해 주세요.");
         List<Long> owner =
-                repo.jdbc.query(
+                jdbc.query(
                         "SELECT user_id FROM hero_creative WHERE id=? AND blocked=FALSE AND deleted_at IS NULL FOR UPDATE",
                         (rs, row) -> rs.getLong(1),
                         request.creativeId());
@@ -161,11 +172,11 @@ public class HeroAuctionService {
                 Objects.equals(auction.highestBidderId(), userId) ? auction.highestBid() : 0;
         if (request.amount() > Math.addExact(wallet.snapshot(userId).availableXp(), ownReserved))
             throw HeroException.conflict("사용 가능한 XP가 부족합니다.");
-        repo.jdbc.update(
+        jdbc.update(
                 "UPDATE hero_bid SET status='OUTBID',reason='더 높은 입찰' WHERE auction_id=? AND status='LEADING'",
                 auctionId);
-        repo.jdbc.update("DELETE FROM hero_reservation WHERE auction_id=?", auctionId);
-        repo.jdbc.update(
+        jdbc.update("DELETE FROM hero_reservation WHERE auction_id=?", auctionId);
+        jdbc.update(
                 "INSERT INTO hero_bid(auction_id,user_id,creative_id,amount,status,idempotency_key,created_at) VALUES(?,?,?,?,'LEADING',?,?)",
                 auctionId,
                 userId,
@@ -174,13 +185,13 @@ public class HeroAuctionService {
                 request.idempotencyKey(),
                 time(now));
         long bidId = repo.insertedId();
-        repo.jdbc.update(
+        jdbc.update(
                 "UPDATE hero_auction SET highest_bid=?,highest_bidder_id=?,highest_bid_id=? WHERE id=?",
                 request.amount(),
                 userId,
                 bidId,
                 auctionId);
-        repo.jdbc.update(
+        jdbc.update(
                 "INSERT INTO hero_reservation(auction_id,user_id,amount) VALUES(?,?,?)",
                 auctionId,
                 userId,
@@ -221,54 +232,54 @@ public class HeroAuctionService {
                                         && wallet.snapshot(id).currentXp() >= amount));
         for (Auction a : auctions) {
             Long bidId =
-                    repo.jdbc.queryForObject(
+                    jdbc.queryForObject(
                             "SELECT highest_bid_id FROM hero_auction WHERE id=?",
                             Long.class,
                             a.id());
             boolean material =
                     bidId != null
                             && Boolean.TRUE.equals(
-                                    repo.jdbc.queryForObject(
+                                    jdbc.queryForObject(
                                             "SELECT NOT c.blocked AND c.deleted_at IS NULL FROM hero_bid b JOIN hero_creative c ON c.id=b.creative_id WHERE b.id=?",
                                             Boolean.class,
                                             bidId));
             boolean winner =
                     bidId != null && valid.getOrDefault(a.highestBidderId(), false) && material;
-            repo.jdbc.update("DELETE FROM hero_reservation WHERE auction_id=?", a.id());
+            jdbc.update("DELETE FROM hero_reservation WHERE auction_id=?", a.id());
             if (winner) {
-                repo.jdbc.update(
+                jdbc.update(
                         "INSERT INTO hero_charge(user_id,auction_id,kind,amount,created_at) VALUES(?,?,'CHARGE',?,?)",
                         a.highestBidderId(),
                         a.id(),
                         a.highestBid(),
                         time(clock.instant()));
-                repo.jdbc.update(
+                jdbc.update(
                         "INSERT INTO hero_placement(auction_id,bid_id,slot,starts_at,ends_at) VALUES(?,?,?,?,?)",
                         a.id(),
                         bidId,
                         a.slot(),
                         time(a.displayStartsAt()),
                         time(a.displayEndsAt()));
-                repo.jdbc.update("UPDATE hero_bid SET status='WON' WHERE id=?", bidId);
-                repo.jdbc.update(
+                jdbc.update("UPDATE hero_bid SET status='WON' WHERE id=?", bidId);
+                jdbc.update(
                         "UPDATE hero_auction SET status='SETTLED',winning_bid_id=? WHERE id=?",
                         bidId,
                         a.id());
             } else {
                 String reason = bidId == null ? "입찰 없음" : "마감 시 자격·잔액 또는 소재 조건 미충족";
                 if (bidId != null)
-                    repo.jdbc.update(
+                    jdbc.update(
                             "UPDATE hero_bid SET status='INVALID',reason=? WHERE id=?",
                             reason,
                             bidId);
-                repo.jdbc.update(
+                jdbc.update(
                         "UPDATE hero_auction SET status='SETTLED',reason=? WHERE id=?",
                         reason,
                         a.id());
             }
         }
         users.values().forEach(wallet::recomputeGrade);
-        repo.jdbc.update("UPDATE hero_week SET status='SETTLED' WHERE week_start=?", week);
+        jdbc.update("UPDATE hero_week SET status='SETTLED' WHERE week_start=?", week);
     }
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
@@ -292,26 +303,26 @@ public class HeroAuctionService {
                                 .toList());
         for (Auction a : auctions) {
             if ("CANCELLED".equals(a.status())) continue;
-            repo.jdbc.update("DELETE FROM hero_reservation WHERE auction_id=?", a.id());
-            repo.jdbc.update(
+            jdbc.update("DELETE FROM hero_reservation WHERE auction_id=?", a.id());
+            jdbc.update(
                     "INSERT IGNORE INTO hero_charge(user_id,auction_id,kind,amount,created_at) SELECT user_id,auction_id,'REFUND',-amount,? FROM hero_charge WHERE auction_id=? AND kind='CHARGE'",
                     time(clock.instant()),
                     a.id());
-            repo.jdbc.update(
+            jdbc.update(
                     "UPDATE hero_placement SET stopped_at=? WHERE auction_id=? AND stopped_at IS NULL",
                     time(clock.instant()),
                     a.id());
-            repo.jdbc.update(
+            jdbc.update(
                     "UPDATE hero_bid SET status='CANCELLED',reason=? WHERE auction_id=? AND status IN ('LEADING','WON','BLOCKED')",
                     reason,
                     a.id());
-            repo.jdbc.update(
+            jdbc.update(
                     "UPDATE hero_auction SET status='CANCELLED',reason=? WHERE id=?",
                     reason,
                     a.id());
         }
         users.values().forEach(wallet::recomputeGrade);
-        repo.jdbc.update(
+        jdbc.update(
                 "UPDATE hero_week SET status='CANCELLED' WHERE week_start=?",
                 auctions.getFirst().weekStart());
         content.audit(actor, "WEEK_CANCEL", auctions.getFirst().id(), reason);
@@ -323,37 +334,37 @@ public class HeroAuctionService {
         reason = HeroValidation.reason(reason);
         // Lock all referenced weeks before users and creative, same order as bids/settlement.
         List<LocalDate> weeks =
-                repo.jdbc.query(
+                jdbc.query(
                         "SELECT DISTINCT a.week_start FROM hero_auction a JOIN hero_bid b ON b.auction_id=a.id WHERE b.creative_id=? ORDER BY a.week_start",
                         (rs, row) -> rs.getDate(1).toLocalDate(),
                         creativeId);
         weeks.forEach(this::lockWeek);
         List<Long> owners =
-                repo.jdbc.query(
+                jdbc.query(
                         "SELECT user_id FROM hero_creative WHERE id=?",
                         (rs, row) -> rs.getLong(1),
                         creativeId);
         if (owners.isEmpty()) throw HeroException.missing();
         lockUsers(owners);
-        repo.jdbc.queryForObject(
+        jdbc.queryForObject(
                 "SELECT id FROM hero_creative WHERE id=? FOR UPDATE", Long.class, creativeId);
-        repo.jdbc.update("UPDATE hero_creative SET blocked=TRUE WHERE id=?", creativeId);
+        jdbc.update("UPDATE hero_creative SET blocked=TRUE WHERE id=?", creativeId);
         List<Long> leading =
-                repo.jdbc.query(
+                jdbc.query(
                         "SELECT auction_id FROM hero_bid WHERE creative_id=? AND status='LEADING'",
                         (rs, row) -> rs.getLong(1),
                         creativeId);
         for (Long id : leading) {
-            repo.jdbc.update("DELETE FROM hero_reservation WHERE auction_id=?", id);
-            repo.jdbc.update(
+            jdbc.update("DELETE FROM hero_reservation WHERE auction_id=?", id);
+            jdbc.update(
                     "UPDATE hero_auction SET highest_bidder_id=NULL,highest_bid_id=NULL WHERE id=?",
                     id);
         }
-        repo.jdbc.update(
+        jdbc.update(
                 "UPDATE hero_placement SET stopped_at=? WHERE bid_id IN (SELECT id FROM hero_bid WHERE creative_id=?) AND stopped_at IS NULL",
                 time(clock.instant()),
                 creativeId);
-        repo.jdbc.update(
+        jdbc.update(
                 "UPDATE hero_bid SET status='BLOCKED',reason=? WHERE creative_id=? AND status IN ('LEADING','WON')",
                 reason,
                 creativeId);
@@ -362,12 +373,12 @@ public class HeroAuctionService {
 
     public History history(long user) {
         List<Bid> bids =
-                repo.jdbc.query(
+                jdbc.query(
                         "SELECT * FROM hero_bid WHERE user_id=? ORDER BY id DESC LIMIT 100",
                         HeroRepository::bid,
                         user);
         List<Charge> charges =
-                repo.jdbc.query(
+                jdbc.query(
                         "SELECT * FROM hero_charge WHERE user_id=? ORDER BY id DESC LIMIT 100",
                         (rs, row) ->
                                 new Charge(
@@ -381,12 +392,11 @@ public class HeroAuctionService {
     }
 
     private void lockCoordination() {
-        repo.jdbc.queryForObject(
-                "SELECT id FROM hero_settings WHERE id=2 FOR UPDATE", Integer.class);
+        jdbc.queryForObject("SELECT id FROM hero_settings WHERE id=2 FOR UPDATE", Integer.class);
     }
 
     private void lockWeek(LocalDate week) {
-        repo.jdbc.queryForObject(
+        jdbc.queryForObject(
                 "SELECT week_start FROM hero_week WHERE week_start=? FOR UPDATE",
                 (rs, row) -> rs.getDate(1).toLocalDate(),
                 week);

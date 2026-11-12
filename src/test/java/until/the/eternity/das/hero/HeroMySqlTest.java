@@ -60,6 +60,7 @@ import until.the.eternity.das.user.outbox.UserInfoOutboxService;
     HeroRepository.class,
     HeroAuctionService.class,
     HeroContentService.class,
+    HeroScheduler.class,
     ExperienceWalletService.class,
     ExperienceService.class,
     ExperienceQueryService.class,
@@ -79,6 +80,16 @@ class HeroMySqlTest {
 
     @TestConfiguration
     static class Configuration {
+        @Bean
+        static org.springframework.dao.annotation.PersistenceExceptionTranslationPostProcessor
+                exceptionTranslation() {
+            var processor =
+                    new org.springframework.dao.annotation
+                            .PersistenceExceptionTranslationPostProcessor();
+            processor.setProxyTargetClass(true);
+            return processor;
+        }
+
         @Bean
         MutableClock clock() {
             return new MutableClock();
@@ -123,6 +134,8 @@ class HeroMySqlTest {
     @Autowired JdbcTemplate jdbc;
     @Autowired HeroAuctionService auctions;
     @Autowired HeroContentService content;
+    @Autowired HeroRepository repository;
+    @Autowired HeroScheduler scheduler;
     @Autowired ExperienceWalletService wallet;
     @Autowired ExperienceService activities;
     @Autowired ExperienceQueryService experience;
@@ -171,6 +184,31 @@ class HeroMySqlTest {
                             + " WHERE user_id IN (SELECT id FROM users WHERE email LIKE 'hero-it-%')");
         }
         jdbc.update("DELETE FROM users WHERE email LIKE 'hero-it-%'");
+    }
+
+    @Test
+    void repositoryProxySupportsReadsAndScheduledCoordination() {
+        assertThat(org.springframework.aop.support.AopUtils.isAopProxy(repository)).isTrue();
+        assertThat(content.slides()).hasSize(1);
+        assertThat(content.creatives(null)).isEmpty();
+        assertThat(content.display(clock.instant()).items()).hasSize(1);
+        assertThat(auctions.history(999999).bids()).isEmpty();
+        jdbc.update("DELETE FROM hero_auction");
+        jdbc.update("DELETE FROM hero_week");
+        clock.set(OPEN.minusSeconds(1));
+        scheduler.reconcile();
+        assertThat(auctions.current().auctions()).isEmpty();
+        assertThat(auctions.current().enabled()).isFalse();
+        assertThat(auctions.current().scheduledStartAt())
+                .isEqualTo(Instant.parse("2026-11-15T15:00:00Z"));
+        assertThat(auctions.all().scheduledStartAt())
+                .isEqualTo(Instant.parse("2026-11-15T15:00:00Z"));
+        clock.set(OPEN);
+        scheduler.reconcile();
+        assertThat(auctions.current().auctions()).hasSize(2);
+        assertThat(auctions.current().enabled()).isTrue();
+        assertThat(auctions.current().scheduledStartAt()).isNull();
+        assertThat(auctions.all().scheduledStartAt()).isNull();
     }
 
     @Test
