@@ -60,6 +60,7 @@ import until.the.eternity.das.user.outbox.UserInfoOutboxService;
     HeroRepository.class,
     HeroAuctionService.class,
     HeroContentService.class,
+    HeroAdminCreativeSearch.class,
     HeroScheduler.class,
     ExperienceWalletService.class,
     ExperienceService.class,
@@ -134,6 +135,7 @@ class HeroMySqlTest {
     @Autowired JdbcTemplate jdbc;
     @Autowired HeroAuctionService auctions;
     @Autowired HeroContentService content;
+    @Autowired HeroAdminCreativeSearch creativeSearch;
     @Autowired HeroRepository repository;
     @Autowired HeroScheduler scheduler;
     @Autowired ExperienceWalletService wallet;
@@ -736,6 +738,293 @@ class HeroMySqlTest {
         assertThat(wallet.snapshot(user).activityXp()).isEqualTo(40);
         assertThat(wallet.snapshot(user).spentXp()).isZero();
         assertThat(wallet.snapshot(user).reservedXp()).isZero();
+    }
+
+    @Test
+    void visibilityPersistsAcrossEditsAndGuardsFinalVisibleDefault() {
+        long user = user(60);
+        long first = content.slides().getFirst().id();
+        assertThatThrownBy(() -> content.visibility(user, first, false))
+                .isInstanceOf(HeroException.class);
+        long second = content.createSlide(user, IMAGE, "Second", null, null, null).id();
+        content.visibility(user, first, false);
+        content.updateSlide(
+                user,
+                first,
+                null,
+                "Hidden edited",
+                null,
+                OPEN.plusSeconds(100),
+                OPEN.plusSeconds(200));
+        assertThat(content.slides().getFirst().visible()).isFalse();
+        content.reorder(user, List.of(first, second));
+        assertThat(content.display(OPEN.plusSeconds(150)).items())
+                .extracting(HeroModels.Slide::id)
+                .containsExactly(second);
+        assertThat(content.display(OPEN).nextChangeAt()).isNull();
+        assertThatThrownBy(() -> content.visibility(user, second, false))
+                .isInstanceOf(HeroException.class);
+        assertThatThrownBy(() -> content.deleteSlide(user, second))
+                .isInstanceOf(HeroException.class);
+        content.visibility(user, first, true);
+        content.visibility(user, first, true);
+        assertThat(content.display(OPEN.plusSeconds(150)).items())
+                .extracting(HeroModels.Slide::id)
+                .containsExactly(first, second);
+        content.visibility(user, first, false);
+        content.deleteSlide(user, first);
+        assertThatThrownBy(() -> content.deleteSlide(user, second))
+                .isInstanceOf(HeroException.class);
+    }
+
+    @Test
+    void simultaneousHidesCannotRemoveBothVisibleDefaults() throws Exception {
+        long user = user(60);
+        long first = content.slides().getFirst().id();
+        long second = content.createSlide(user, IMAGE, "Second", null, null, null).id();
+        CountDownLatch start = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var a = executor.submit(() -> hideAfter(start, user, first));
+            var b = executor.submit(() -> hideAfter(start, user, second));
+            start.countDown();
+            assertThat(List.of(a.get(15, TimeUnit.SECONDS), b.get(15, TimeUnit.SECONDS)))
+                    .containsExactlyInAnyOrder(true, false);
+        }
+        assertThat(content.slides().stream().filter(HeroModels.Slide::visible)).hasSize(1);
+    }
+
+    @Test
+    void unblockAllowsNewBidsWithoutRestoringOldReservationOrBid() {
+        long user = user(60);
+        long creative = creative(user);
+        long oldBid = bid(user, 1, creative, 10).id();
+        auctions.block(user, creative, "Policy violation");
+        auctions.unblock(user, creative, "Reviewed and cleared");
+        auctions.unblock(user, creative, "Retry");
+        assertThat(wallet.snapshot(user).reservedXp()).isZero();
+        assertThat(repository.bid(oldBid).status()).isEqualTo("BLOCKED");
+        assertThat(count("hero_charge")).isZero();
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT COUNT(*) FROM hero_audit WHERE action='CREATIVE_UNBLOCK' AND target_id=?",
+                                Long.class,
+                                creative))
+                .isEqualTo(1);
+        assertThat(content.creative(creative).blocked()).isFalse();
+        bid(user, 1, creative, 11);
+        assertThat(wallet.snapshot(user).reservedXp()).isEqualTo(11);
+    }
+
+    @Test
+    void unblockNeverRestoresSettledPlacementOrRefundsCharges() {
+        long user = user(60);
+        long creative = creative(user);
+        long winningBid = bid(user, 1, creative, 10).id();
+        clock.set(CLOSE);
+        auctions.settle(WEEK);
+        auctions.block(user, creative, "Policy violation");
+        var charges = jdbc.queryForList("SELECT * FROM hero_charge ORDER BY id");
+        var placement = jdbc.queryForList("SELECT * FROM hero_placement ORDER BY auction_id");
+        auctions.unblock(user, creative, "Reviewed and cleared");
+        assertThat(jdbc.queryForList("SELECT * FROM hero_charge ORDER BY id")).isEqualTo(charges);
+        assertThat(jdbc.queryForList("SELECT * FROM hero_placement ORDER BY auction_id"))
+                .isEqualTo(placement);
+        assertThat(repository.bid(winningBid).status()).isEqualTo("BLOCKED");
+        assertThat(wallet.snapshot(user).spentXp()).isEqualTo(10);
+        assertThat(wallet.snapshot(user).reservedXp()).isZero();
+        assertThat(content.display(DISPLAY).items()).noneMatch(HeroModels.Slide::advertisement);
+    }
+
+    @Test
+    void unblockRejectsMissingDeletedAndEmptyReason() {
+        long user = user(60);
+        long creative = creative(user);
+        assertThatThrownBy(() -> auctions.unblock(user, creative, " "))
+                .isInstanceOf(HeroException.class);
+        content.deleteCreative(user, creative);
+        assertThatThrownBy(() -> auctions.unblock(user, creative, "Reviewed"))
+                .isInstanceOf(HeroException.class);
+        assertThatThrownBy(() -> auctions.unblock(user, Long.MAX_VALUE, "Reviewed"))
+                .isInstanceOf(HeroException.class);
+    }
+
+    @Test
+    void adminSearchPaginatesAllHistoryAndFiltersOwnerLiteralQueryAndBlockStatus() {
+        long user = user(60);
+        jdbc.update("UPDATE users SET nickname='광고 담당자' WHERE id=?", user);
+        long older =
+                content.createCreative(user, IMAGE, "100%_지원", "https://www.memonogi.com/community")
+                        .id();
+        long blocked = creative(user);
+        auctions.block(user, blocked, "First reason");
+        auctions.block(user, blocked, "Latest reason");
+        for (int i = 0; i < 105; i++) creative(user);
+        var first = creativeSearch.search(0, 50, "", "ALL");
+        var last = creativeSearch.search(2, 50, "", "ALL");
+        assertThat(first.totalElements()).isEqualTo(107);
+        assertThat(first.totalPages()).isEqualTo(3);
+        assertThat(first.items()).hasSize(50);
+        assertThat(last.items())
+                .hasSize(7)
+                .extracting(HeroModels.AdminHeroCreative::id)
+                .contains(older, blocked);
+        assertThat(creativeSearch.search(3, 50, "", "ALL").items()).isEmpty();
+        assertThat(creativeSearch.search(0, 20, "100%_", "ALL").items())
+                .extracting(HeroModels.AdminHeroCreative::id)
+                .containsExactly(older);
+        assertThat(creativeSearch.search(0, 20, "' OR 1=1 --", "ALL").totalElements()).isZero();
+        assertThat(creativeSearch.search(0, 20, "광고 담당자", "AVAILABLE").totalElements())
+                .isEqualTo(106);
+        assertThat(creativeSearch.search(0, 20, Long.toString(older), "ALL").items())
+                .extracting(HeroModels.AdminHeroCreative::id)
+                .contains(older);
+        var item = creativeSearch.search(0, 20, "", "BLOCKED").items().getFirst();
+        assertThat(item.id()).isEqualTo(blocked);
+        assertThat(item.userId()).isEqualTo(user);
+        assertThat(item.nickname()).isEqualTo("광고 담당자");
+        assertThat(item.blockReason()).isEqualTo("Latest reason");
+        content.deleteCreative(user, older);
+        assertThat(creativeSearch.search(0, 20, "100%_", "ALL").totalElements()).isZero();
+    }
+
+    @Test
+    void adminSearchUsageCountsFollowCurrentTimeAndStoppedPlacements() {
+        long user = user(60);
+        long creative = creative(user);
+        bid(user, 1, creative, 10);
+        assertThat(creativeSearch.search(0, 20, "", "ALL").items().getFirst().leadingBidCount())
+                .isEqualTo(1);
+        clock.set(CLOSE);
+        auctions.settle(WEEK);
+        var scheduled = creativeSearch.search(0, 20, "", "ALL").items().getFirst();
+        assertThat(scheduled.leadingBidCount()).isZero();
+        assertThat(scheduled.scheduledPlacementCount()).isEqualTo(1);
+        assertThat(scheduled.activePlacementCount()).isZero();
+        clock.set(DISPLAY);
+        var active = creativeSearch.search(0, 20, "", "ALL").items().getFirst();
+        assertThat(active.scheduledPlacementCount()).isZero();
+        assertThat(active.activePlacementCount()).isEqualTo(1);
+        auctions.block(user, creative, "Policy");
+        auctions.unblock(user, creative, "Reviewed");
+        var stopped = creativeSearch.search(0, 20, "", "ALL").items().getFirst();
+        assertThat(stopped.leadingBidCount()).isZero();
+        assertThat(stopped.scheduledPlacementCount()).isZero();
+        assertThat(stopped.activePlacementCount()).isZero();
+        assertThat(stopped.blockReason()).isNull();
+    }
+
+    @Test
+    void bannerMigrationPromotesOnlyUntouchedSeedAndPreservesOtherDefaultOrdering()
+            throws Exception {
+        long seed = content.slides().getFirst().id();
+        jdbc.update(
+                "UPDATE hero_slide SET image_url='/home-hero-library-v2.png',alt_text='메모노기 도서관',position=8 WHERE id=?",
+                seed);
+        long user = user(60);
+        long custom = content.createSlide(user, IMAGE, "Custom", null, null, null).id();
+        long customizedLibrary =
+                content.createSlide(
+                                user,
+                                IMAGE,
+                                "메모노기 도서관",
+                                "https://www.memonogi.com/community",
+                                null,
+                                null)
+                        .id();
+        jdbc.update("UPDATE hero_slide SET position=1 WHERE id=?", custom);
+        jdbc.update("UPDATE hero_slide SET position=3 WHERE id=?", customizedLibrary);
+        jdbc.update(
+                "UPDATE hero_slide SET image_url='/home-hero-library-v2.png' WHERE id=?",
+                customizedLibrary);
+        applyBannerDataMigration();
+        var slides = content.slides();
+        assertThat(slides)
+                .extracting(HeroModels.Slide::id)
+                .containsExactly(seed, custom, customizedLibrary);
+        assertThat(slides.getFirst().imageUrl()).isEqualTo("/home-hero-auction.jpg");
+        assertThat(slides.getFirst().linkUrl()).isEqualTo("https://www.memonogi.com/hero-auctions");
+        assertThat(slides.get(2).imageUrl()).isEqualTo("/home-hero-library-v2.png");
+        assertThat(slides.get(2).linkUrl()).isEqualTo("https://www.memonogi.com/community");
+        applyBannerDataMigration();
+        assertThat(content.slides()).isEqualTo(slides);
+        assertThat(HeroContentService.fallback(1).imageUrl())
+                .isEqualTo("/home-hero-unavailable.svg");
+    }
+
+    @Test
+    void bannerMigrationLeavesCustomizedAndDeletedLibrarySeedsUntouched() throws Exception {
+        long user = user(60);
+        long first = content.slides().getFirst().id();
+        jdbc.update(
+                "UPDATE hero_slide SET image_url='/home-hero-library-v2.png',alt_text='Customized' WHERE id=?",
+                first);
+        long scheduled = content.createSlide(user, IMAGE, "메모노기 도서관", null, OPEN, CLOSE).id();
+        jdbc.update(
+                "UPDATE hero_slide SET image_url='/home-hero-library-v2.png' WHERE id=?",
+                scheduled);
+        long deleted = content.createSlide(user, IMAGE, "메모노기 도서관", null, null, null).id();
+        jdbc.update(
+                "UPDATE hero_slide SET image_url='/home-hero-library-v2.png',deleted_at=? WHERE id=?",
+                time(OPEN),
+                deleted);
+        var before = jdbc.queryForList("SELECT * FROM hero_slide ORDER BY id");
+        applyBannerDataMigration();
+        assertThat(jdbc.queryForList("SELECT * FROM hero_slide ORDER BY id")).isEqualTo(before);
+    }
+
+    @Test
+    void hiddenPromotionIsNotResurrectedForScheduleGapOrPaidSecondSlot() {
+        long user = user(60);
+        long promotion = content.slides().getFirst().id();
+        jdbc.update(
+                "UPDATE hero_slide SET image_url='/home-hero-auction.jpg' WHERE id=?", promotion);
+        content.createSlide(
+                user,
+                IMAGE,
+                "Future default",
+                null,
+                DISPLAY.plusSeconds(60),
+                DISPLAY.plusSeconds(120));
+        content.visibility(user, promotion, false);
+        var before = content.display(DISPLAY).items().getFirst();
+        assertThat(before.imageUrl()).isEqualTo("/home-hero-unavailable.svg");
+        assertThat(before.linkUrl()).isNull();
+        bid(user, 2, creative(user), 10);
+        clock.set(CLOSE);
+        auctions.settle(WEEK);
+        var pair = content.display(DISPLAY).items();
+        assertThat(pair).hasSize(2);
+        assertThat(pair.getFirst().imageUrl()).isEqualTo("/home-hero-unavailable.svg");
+        assertThat(pair.get(1).advertisement()).isTrue();
+        assertThat(pair.get(1).position()).isEqualTo(2);
+        assertThat(content.display(DISPLAY.plusSeconds(7 * 86400)).items().getFirst().imageUrl())
+                .isEqualTo("/home-hero-unavailable.svg");
+    }
+
+    private void applyBannerDataMigration() throws Exception {
+        var resource =
+                new org.springframework.core.io.ClassPathResource(
+                        "db/migration/V20261120000001__hero_image_management.sql");
+        String script = resource.getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        // Flyway applies the schema addition on context startup; replay the exact seed DML against
+        // fixtures.
+        var data =
+                new org.springframework.core.io.ByteArrayResource(
+                        script.substring(script.indexOf(';') + 1)
+                                .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        new org.springframework.jdbc.datasource.init.ResourceDatabasePopulator(data)
+                .execute(jdbc.getDataSource());
+    }
+
+    private boolean hideAfter(CountDownLatch start, long user, long id)
+            throws InterruptedException {
+        start.await();
+        try {
+            content.visibility(user, id, false);
+            return true;
+        } catch (HeroException expectedConflict) {
+            return false;
+        }
     }
 
     private Callable<Boolean> compete(CountDownLatch start, long user, long creative) {

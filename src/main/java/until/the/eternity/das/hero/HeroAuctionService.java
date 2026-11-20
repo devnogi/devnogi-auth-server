@@ -371,6 +371,22 @@ public class HeroAuctionService {
         content.audit(actor, "CREATIVE_BLOCK", creativeId, reason);
     }
 
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public void unblock(long actor, long creativeId, String reason) {
+        lockCoordination();
+        reason = HeroValidation.reason(reason);
+        List<Boolean> blocked =
+                jdbc.query(
+                        "SELECT blocked FROM hero_creative WHERE id=? AND deleted_at IS NULL FOR UPDATE",
+                        (rs, row) -> rs.getBoolean(1),
+                        creativeId);
+        if (blocked.isEmpty()) throw HeroException.missing();
+        if (!blocked.getFirst()) return;
+        // Old bids, placements and XP entries remain final; only future bidding is permitted.
+        jdbc.update("UPDATE hero_creative SET blocked=FALSE WHERE id=?", creativeId);
+        content.audit(actor, "CREATIVE_UNBLOCK", creativeId, reason);
+    }
+
     public History history(long user) {
         List<Bid> bids =
                 jdbc.query(
