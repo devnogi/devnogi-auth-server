@@ -16,7 +16,8 @@ public final class HeroModels {
             boolean advertisement,
             Instant startsAt,
             Instant endsAt,
-            Instant deletedAt) {}
+            Instant deletedAt,
+            boolean visible) {}
 
     public record Display(List<Slide> items, Instant nextChangeAt, Instant serverTime) {}
 
@@ -27,6 +28,27 @@ public final class HeroModels {
             String linkUrl,
             boolean blocked,
             Instant createdAt) {}
+
+    public record AdminHeroCreative(
+            long id,
+            String imageUrl,
+            String altText,
+            String linkUrl,
+            boolean blocked,
+            Instant createdAt,
+            long userId,
+            String nickname,
+            String blockReason,
+            long leadingBidCount,
+            long scheduledPlacementCount,
+            long activePlacementCount) {}
+
+    public record AdminCreativePage(
+            List<AdminHeroCreative> items,
+            int page,
+            int size,
+            long totalElements,
+            long totalPages) {}
 
     public record Auction(
             long id,
@@ -71,4 +93,13 @@ public final class HeroModels {
     public record OrderRequest(List<Long> ids) {}
 
     public record ReasonRequest(String reason) {}
+
+    public record VisibilityRequest(
+            @com.fasterxml.jackson.databind.annotation.JsonDeserialize(
+                            using = HeroBooleanDeserializer.class)
+                    Boolean visible) {
+        public VisibilityRequest {
+            if (visible == null) throw HeroException.invalid("노출 여부를 지정해 주세요.");
+        }
+    }
 }

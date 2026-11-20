@@ -84,14 +84,35 @@ public class HeroContentService {
     @Transactional
     public void deleteSlide(long actor, long id) {
         lockSettings();
-        slide(id);
-        if (slides().size() <= 1) throw HeroException.conflict("마지막 기본 이미지는 삭제할 수 없습니다.");
+        Slide old = slide(id);
+        List<Slide> existing = slides();
+        if (existing.size() <= 1) throw HeroException.conflict("마지막 기본 이미지는 삭제할 수 없습니다.");
+        ensureAnotherVisible(old, existing);
         jdbc.update(
                 "UPDATE hero_slide SET deleted_at=?,updated_at=? WHERE id=?",
                 time(clock.instant()),
                 time(clock.instant()),
                 id);
         audit(actor, "SLIDE_DELETE", id, "soft delete");
+    }
+
+    @Transactional
+    public void visibility(long actor, long id, boolean visible) {
+        lockSettings();
+        Slide old = slide(id);
+        if (old.visible() == visible) return;
+        if (!visible) ensureAnotherVisible(old, slides());
+        jdbc.update(
+                "UPDATE hero_slide SET visible=?,updated_at=? WHERE id=?",
+                visible,
+                time(clock.instant()),
+                id);
+        audit(actor, "SLIDE_VISIBILITY", id, "visible=" + visible);
+    }
+
+    private static void ensureAnotherVisible(Slide target, List<Slide> existing) {
+        if (target.visible() && existing.stream().filter(Slide::visible).count() <= 1)
+            throw HeroException.conflict("마지막 노출 기본 이미지는 숨기거나 삭제할 수 없습니다.");
     }
 
     @Transactional
@@ -113,7 +134,10 @@ public class HeroContentService {
 
     public Display display(Instant at) {
         List<Slide> defaults =
-                slides().stream().filter(s -> active(at, s.startsAt(), s.endsAt())).toList();
+                slides().stream()
+                        .filter(Slide::visible)
+                        .filter(s -> active(at, s.startsAt(), s.endsAt()))
+                        .toList();
         List<Slide> ads =
                 jdbc.query(
                         """
@@ -132,7 +156,8 @@ public class HeroContentService {
                                         true,
                                         HeroRepository.instant(rs, "starts_at"),
                                         HeroRepository.instant(rs, "ends_at"),
-                                        null),
+                                        null,
+                                        true),
                         time(at),
                         time(at));
         List<Slide> result = new ArrayList<>();
@@ -156,7 +181,8 @@ public class HeroContentService {
                                 false,
                                 item.startsAt(),
                                 item.endsAt(),
-                                null));
+                                null,
+                                true));
             } else if (result.isEmpty()
                     || (position == 1 && ads.stream().anyMatch(a -> a.position() == 2))) {
                 result.add(fallback(position));
@@ -164,6 +190,7 @@ public class HeroContentService {
         }
         List<Instant> boundaries = new ArrayList<>();
         for (Slide s : slides()) {
+            if (!s.visible()) continue;
             if (s.startsAt() != null && s.startsAt().isAfter(at)) boundaries.add(s.startsAt());
             if (s.endsAt() != null && s.endsAt().isAfter(at)) boundaries.add(s.endsAt());
         }
@@ -183,7 +210,16 @@ public class HeroContentService {
 
     static Slide fallback(int position) {
         return new Slide(
-                0, "/home-hero-library-v2.png", "메모노기", null, position, false, null, null, null);
+                0,
+                "/home-hero-unavailable.svg",
+                "메모노기",
+                null,
+                position,
+                false,
+                null,
+                null,
+                null,
+                true);
     }
 
     @Transactional

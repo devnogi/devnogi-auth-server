@@ -16,6 +16,7 @@ import until.the.eternity.das.hero.HeroModels.*;
 public class HeroController {
     private final HeroContentService content;
     private final HeroAuctionService auctions;
+    private final HeroAdminCreativeSearch creativeSearch;
     private final java.time.Clock clock;
 
     @GetMapping("/api/hero")
@@ -107,6 +108,15 @@ public class HeroController {
         return CommonResponse.success(null);
     }
 
+    @PutMapping("/api/admin/hero/slides/{slideId}/visibility")
+    public CommonResponse<Void> visibility(
+            @AuthenticationPrincipal Long id,
+            @PathVariable long slideId,
+            @RequestBody VisibilityRequest request) {
+        content.visibility(id, slideId, request.visible());
+        return CommonResponse.success(null);
+    }
+
     @GetMapping("/api/admin/hero/preview")
     public CommonResponse<Display> preview(@RequestParam String at) {
         if (at.isBlank()) throw HeroException.invalid("미리보기 시각이 필요합니다.");
@@ -123,12 +133,30 @@ public class HeroController {
         return CommonResponse.success(content.creatives(null));
     }
 
+    @GetMapping("/api/admin/hero/creatives/search")
+    public CommonResponse<AdminCreativePage> searchCreatives(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "") String query,
+            @RequestParam(defaultValue = "ALL") String status) {
+        return CommonResponse.success(creativeSearch.search(page, size, query, status));
+    }
+
     @PostMapping("/api/admin/hero/creatives/{creativeId}/block")
     public CommonResponse<Void> block(
             @AuthenticationPrincipal Long id,
             @PathVariable long creativeId,
             @RequestBody ReasonRequest request) {
         auctions.block(id, creativeId, request.reason());
+        return CommonResponse.success(null);
+    }
+
+    @PostMapping("/api/admin/hero/creatives/{creativeId}/unblock")
+    public CommonResponse<Void> unblock(
+            @AuthenticationPrincipal Long id,
+            @PathVariable long creativeId,
+            @RequestBody ReasonRequest request) {
+        auctions.unblock(id, creativeId, request.reason());
         return CommonResponse.success(null);
     }
 

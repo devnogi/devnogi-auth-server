@@ -35,7 +35,8 @@ public class HeroRepository {
                 false,
                 instant(rs, "starts_at"),
                 instant(rs, "ends_at"),
-                instant(rs, "deleted_at"));
+                instant(rs, "deleted_at"),
+                rs.getBoolean("visible"));
     }
 
     static Creative creative(ResultSet rs, int row) throws SQLException {
